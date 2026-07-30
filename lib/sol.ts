@@ -52,10 +52,19 @@ export function greetingFor(name: string, alreadyGreeted: boolean) {
 export function assertAuthenticated(request: Request) {
   const url = new URL(request.url);
   const isLocal = ["localhost", "127.0.0.1", "terminal.local"].includes(url.hostname);
-  const email = request.headers.get("oai-authenticated-user-email");
+
+  const openAiEmail = request.headers.get("oai-authenticated-user-email");
+  const cloudflareEmail = request.headers.get("cf-access-authenticated-user-email");
+  const cloudflareToken = request.headers.get("cf-access-jwt-assertion");
+
+  const email =
+    openAiEmail ??
+    (cloudflareToken && cloudflareEmail ? cloudflareEmail : null);
+
   if (!email && !isLocal) {
     throw new Response("Não autorizado", { status: 401 });
   }
+
   return email ?? "desenvolvimento-local";
 }
 
