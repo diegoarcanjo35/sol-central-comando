@@ -4,6 +4,15 @@ Todas as mudanças relevantes da SOL — Central de Comando serão registradas a
 
 O projeto usa versionamento semântico: `MAIOR.MENOR.CORREÇÃO`.
 
+## [0.1.1] — 2026-07-30
+
+### Corrigido
+
+- removido o acionamento automático da API experimental de reconhecimento de voz;
+- botão da SOL agora abre a conversa sem solicitar o microfone do navegador;
+- entrada por voz continua disponível pelo microfone do teclado do celular;
+- adicionados rótulos de acessibilidade aos controles da conversa.
+
 ## [0.1.0] — 2026-07-30
 
 ### Adicionado
@@ -20,5 +29,5 @@ O projeto usa versionamento semântico: `MAIOR.MENOR.CORREÇÃO`.
 
 - conteúdo demonstrativo, sem persistência;
 - provedores de IA ainda não conectados;
-- botão de voz baseado no navegador pode travar em alguns dispositivos móveis;
+- captura de voz interna ainda não disponível;
 - domínio personalizado ainda não configurado.

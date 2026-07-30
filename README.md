@@ -4,7 +4,7 @@ Painel pessoal, mobile-first, para organizar atividades, projetos, decisões e c
 
 ## Versão
 
-`v0.1.0` — primeiro protótipo navegável.
+`v0.1.1` — correção de segurança e compatibilidade do acesso à SOL.
 
 Esta versão registra a interface e a experiência inicial do produto. Os dados exibidos são demonstrativos e ficam apenas na memória do navegador enquanto a página está aberta.
 
@@ -15,7 +15,7 @@ Esta versão registra a interface e a experiência inicial do produto. Os dados 
 - marcação visual de atividades concluídas;
 - configuração visual de OpenAI, Google Gemini e Anthropic Claude;
 - interface da assistente SOL com entrada por texto;
-- tentativa de reconhecimento de voz nativo do navegador;
+- abertura segura da SOL, com entrada por texto ou pelo microfone do teclado;
 - manifesto PWA para instalação na tela inicial do celular;
 - layout responsivo para celular e computador.
 
@@ -29,9 +29,9 @@ Esta versão registra a interface e a experiência inicial do produto. Os dados 
 - transcrição de áudio por serviço externo;
 - domínio personalizado e infraestrutura definitiva.
 
-## Limitação conhecida
+## Entrada por voz nesta versão
 
-O botão **Falar** usa a API experimental de reconhecimento de voz do navegador. Em iPhone e em alguns navegadores internos ele pode travar a tela. Até a implementação segura da captura de áudio, use a caixa de texto ou o microfone do teclado.
+O botão **SOL** apenas abre a conversa e não solicita acesso direto ao microfone. Para ditar uma mensagem, use o microfone do próprio teclado do celular. A captura de áudio interna será implementada em uma versão futura com fallback seguro.
 
 ## Executar localmente
 

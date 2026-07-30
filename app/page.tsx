@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 
 type Tab = "inicio" | "atividades" | "projetos" | "historico" | "ajustes";
 type Task = {
@@ -41,43 +41,17 @@ export default function Home() {
   const [tab, setTab] = useState<Tab>("inicio");
   const [tasks, setTasks] = useState(seedTasks);
   const [assistantOpen, setAssistantOpen] = useState(false);
-  const [listening, setListening] = useState(false);
   const [transcript, setTranscript] = useState("");
   const [message, setMessage] = useState("");
   const [provider, setProvider] = useState("OpenAI");
-  const recognitionRef = useRef<{ stop?: () => void } | null>(null);
   const openTasks = useMemo(() => tasks.filter((task) => task.status !== "concluida"), [tasks]);
 
   function toggleTask(id: number) {
     setTasks((current) => current.map((task) => task.id === id ? { ...task, status: task.status === "concluida" ? "hoje" : "concluida" } : task));
   }
 
-  function startListening() {
-    type SpeechCtor = new () => {
-      lang: string; interimResults: boolean; continuous: boolean;
-      onresult: (event: { results: ArrayLike<{ 0: { transcript: string } }> }) => void;
-      onend: () => void; start: () => void; stop: () => void;
-    };
-    const browserWindow = window as typeof window & { SpeechRecognition?: SpeechCtor; webkitSpeechRecognition?: SpeechCtor };
-    const Recognition = browserWindow.SpeechRecognition ?? browserWindow.webkitSpeechRecognition;
+  function openAssistant() {
     setAssistantOpen(true);
-    if (!Recognition) {
-      setTranscript("Use o microfone do teclado para ditar. O reconhecimento direto não está disponível neste navegador.");
-      return;
-    }
-    const recognition = new Recognition();
-    recognition.lang = "pt-BR";
-    recognition.interimResults = true;
-    recognition.continuous = false;
-    recognition.onresult = (event) => {
-      const text = Array.from(event.results).map((result) => result[0].transcript).join(" ");
-      setTranscript(text);
-      setMessage(text);
-    };
-    recognition.onend = () => setListening(false);
-    recognitionRef.current = recognition;
-    setListening(true);
-    recognition.start();
   }
 
   function sendMessage() {
@@ -141,10 +115,10 @@ export default function Home() {
         </div>}
       </section>
 
-      <button className={listening ? "voice listening" : "voice"} onClick={() => listening ? recognitionRef.current?.stop?.() : startListening()}><span>{listening ? "■" : "●"}</span><small>{listening ? "Ouvindo" : "Falar"}</small></button>
+      <button className="voice" onClick={openAssistant} aria-label="Abrir conversa com a SOL"><span>✦</span><small>SOL</small></button>
       <nav className="mobile-nav">{nav.slice(0, 4).map((item) => <button className={tab === item.id ? "active" : ""} key={item.id} onClick={() => setTab(item.id)}><span>{item.icon}</span><small>{item.label}</small></button>)}</nav>
 
-      {assistantOpen && <div className="backdrop" onClick={() => setAssistantOpen(false)}><section className="assistant" onClick={(event) => event.stopPropagation()}><div className="handle" /><header><div><span className="sol">S</span><p><strong>SOL</strong><small>{provider} · Contexto atualizado</small></p></div><button onClick={() => setAssistantOpen(false)}>×</button></header><div className="assistant-message">Diego, vamos direto ao ponto. O que precisa ser registrado ou resolvido agora?</div>{listening && <div className="wave">{[1,2,3,4,5,6,7].map((i) => <i key={i} />)}</div>}{transcript && <><div className="user-message">{transcript}</div><div className="assistant-message firm">Entendi. Antes de abrir uma nova frente, vou verificar suas prioridades e transformar isso em uma próxima ação objetiva.</div></>}<footer><textarea value={message} onChange={(event) => setMessage(event.target.value)} placeholder="Digite ou use o microfone do teclado…" /><button onClick={sendMessage}>↑</button></footer></section></div>}
+      {assistantOpen && <div className="backdrop" onClick={() => setAssistantOpen(false)}><section className="assistant" onClick={(event) => event.stopPropagation()}><div className="handle" /><header><div><span className="sol">S</span><p><strong>SOL</strong><small>{provider} · Contexto atualizado</small></p></div><button onClick={() => setAssistantOpen(false)} aria-label="Fechar conversa">×</button></header><div className="assistant-message">Diego, vamos direto ao ponto. O que precisa ser registrado ou resolvido agora? Digite abaixo ou use o microfone do próprio teclado.</div>{transcript && <><div className="user-message">{transcript}</div><div className="assistant-message firm">Entendi. Antes de abrir uma nova frente, vou verificar suas prioridades e transformar isso em uma próxima ação objetiva.</div></>}<footer><textarea value={message} onChange={(event) => setMessage(event.target.value)} placeholder="Digite ou use o microfone do teclado…" /><button onClick={sendMessage} aria-label="Enviar mensagem">↑</button></footer></section></div>}
     </main>
   );
 }
