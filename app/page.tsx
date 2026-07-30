@@ -853,7 +853,8 @@ function AdminPanel({ onError }: { onError: (message: string) => void }) {
   async function invite(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setBusy("invite");
-    const form = new FormData(event.currentTarget);
+    const formElement = event.currentTarget;
+    const form = new FormData(formElement);
     try {
       const response = await fetch("/api/admin/users", {
         method: "POST",
@@ -867,7 +868,7 @@ function AdminPanel({ onError }: { onError: (message: string) => void }) {
       });
       const payload = await response.json() as { error?: string };
       if (!response.ok) throw new Error(payload.error ?? "Erro ao cadastrar usuário.");
-      event.currentTarget.reset();
+      formElement.reset();
       await load();
     } catch (inviteError) {
       onError(inviteError instanceof Error ? inviteError.message : "Erro ao cadastrar usuário.");
