@@ -1,76 +1,62 @@
 # SOL — Central de Comando
 
-Painel pessoal, mobile-first, para organizar atividades, projetos, decisões e cobranças estratégicas.
+Aplicativo pessoal mobile-first para gerenciar projetos, atividades, memória, prioridades e execução com assistência de IA.
 
 ## Versão
 
-`v0.1.1` — correção de segurança e compatibilidade do acesso à SOL.
+`v0.5.0 beta`
 
-Esta versão registra a interface e a experiência inicial do produto. Os dados exibidos são demonstrativos e ficam apenas na memória do navegador enquanto a página está aberta.
+## Recursos
 
-## O que já existe
+- projetos e atividades persistidos em Cloudflare D1;
+- datas, atrasos, prioridades, recorrência e projetos sem atualização;
+- histórico automático de decisões e alterações;
+- assistente SOL com memória e cache de contexto;
+- OpenAI, Google Gemini e Anthropic Claude usando o mesmo banco;
+- provedor ativo selecionável no painel;
+- chaves de API criptografadas no servidor;
+- gravação de áudio segura e resposta somente por texto;
+- PWA instalável no celular.
 
-- painel inicial com foco, atrasos, atividades do dia e projetos sem atualização;
-- navegação entre Início, Atividades, Projetos, Histórico e Ajustes;
-- marcação visual de atividades concluídas;
-- configuração visual de OpenAI, Google Gemini e Anthropic Claude;
-- interface da assistente SOL com entrada por texto;
-- abertura segura da SOL, com entrada por texto ou pelo microfone do teclado;
-- manifesto PWA para instalação na tela inicial do celular;
-- layout responsivo para celular e computador.
+## Provedores padrão
 
-## O que ainda não está conectado
+- OpenAI: `gpt-5.6-terra`;
+- Google: `gemini-3.6-flash`;
+- Anthropic: `claude-sonnet-5`;
+- transcrição: `gpt-4o-mini-transcribe`.
 
-- banco de dados e persistência;
-- autenticação própria;
-- APIs de OpenAI, Google Gemini e Anthropic;
-- cache de contexto e memória compartilhada entre provedores;
-- criação e atualização real de projetos pela assistente;
-- transcrição de áudio por serviço externo;
-- domínio personalizado e infraestrutura definitiva.
+Os modelos podem ser alterados em **Ajustes** sem modificar o código.
 
-## Entrada por voz nesta versão
+## Segurança
 
-O botão **SOL** apenas abre a conversa e não solicita acesso direto ao microfone. Para ditar uma mensagem, use o microfone do próprio teclado do celular. A captura de áudio interna será implementada em uma versão futura com fallback seguro.
+- nunca envie `.env` ou chaves de API para o GitHub;
+- `.env*` está bloqueado pelo `.gitignore`;
+- as chaves cadastradas na interface são criptografadas antes de serem salvas;
+- `SOL_ENCRYPTION_KEY` existe somente nas variáveis protegidas da hospedagem;
+- a aplicação permanece restrita ao proprietário durante a fase beta.
 
-## Executar localmente
+## Desenvolvimento
 
 Requisitos:
 
 - Node.js `>=22.13.0`;
 - npm;
-- Linux para os scripts auxiliares de build atuais.
+- ambiente compatível com Cloudflare Workers.
 
 ```bash
 npm ci
-npm run dev
-```
-
-O terminal exibirá o endereço local da aplicação.
-
-## Validar
-
-```bash
+npm run db:generate
+npm run lint
 npm run build
-npm test
 ```
 
-## Arquitetura atual
+## Estrutura
 
-- Next.js 16;
-- React 19;
-- TypeScript;
-- Vinext/Vite;
-- suporte preparado para Cloudflare Workers e D1;
-- Drizzle ORM preparado, ainda sem tabelas.
+- `app/page.tsx`: painel e interações;
+- `app/api/`: endpoints do aplicativo;
+- `lib/sol.ts`: memória, cache, segurança e roteador de IA;
+- `db/schema.ts`: estrutura do banco;
+- `drizzle/`: migrações aplicadas na publicação;
+- `.openai/hosting.json`: vínculos lógicos da hospedagem.
 
-O arquivo `.openai/hosting.json` contém somente o identificador do projeto publicado no Sites. Ele não é uma credencial nem uma chave secreta.
-
-## Próximas versões sugeridas
-
-- `v0.2.0`: atividades e projetos persistidos em D1;
-- `v0.3.0`: memória, cache de contexto e troca de provedor de IA;
-- `v0.4.0`: captura/transcrição de áudio com fallback seguro;
-- `v1.0.0`: versão pessoal estável no domínio definitivo.
-
-Consulte [CHANGELOG.md](CHANGELOG.md) para o histórico e [docs/PRIMEIRO-ENVIO-GITHUB.md](docs/PRIMEIRO-ENVIO-GITHUB.md) para publicar este pacote.
+Consulte [CHANGELOG.md](CHANGELOG.md) para o histórico.
