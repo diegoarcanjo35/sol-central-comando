@@ -5,13 +5,14 @@ import {
   createInvitedUser,
   errorResponse,
   nowIso,
-  requireAdmin,
+  requirePlatformOwner,
   type UserRole,
 } from "../../../../lib/sol";
+import { createInvitation, hasPassword } from "../../../../lib/auth";
 
 export async function GET(request: Request) {
   try {
-    await requireAdmin(request);
+    await requirePlatformOwner(request);
     const db = await getDb();
     const [userRows, usageRows] = await Promise.all([
       db.select().from(users).orderBy(desc(users.createdAt)).all(),
@@ -37,16 +38,17 @@ export async function GET(request: Request) {
       usageByUser.set(row.userId, current);
     }
     return Response.json({
-      users: userRows.map((user) => ({
+      users: await Promise.all(userRows.map(async (user) => ({
         ...user,
+        hasPassword: await hasPassword(user.id),
         usage: usageByUser.get(user.id) ?? {
           requests: 0,
           inputTokens: 0,
           outputTokens: 0,
           audioBytes: 0,
         },
-      })),
-      accessNote: "Além do cadastro no SOL, autorize o e-mail na política do Cloudflare Access.",
+      }))),
+      accessNote: "Gere o link e envie diretamente à pessoa. Ele expira em 48 horas.",
     });
   } catch (error) {
     return errorResponse(error);
@@ -55,7 +57,7 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    await requireAdmin(request);
+    const auth = await requirePlatformOwner(request);
     const payload = await request.json() as {
       email?: string;
       name?: string;
@@ -68,7 +70,16 @@ export async function POST(request: Request) {
       role: payload.role,
       plan: payload.plan,
     });
-    return Response.json({ user: created }, { status: 201 });
+    const token = await createInvitation(
+      created.id,
+      auth.user.id,
+      created.existing ? "reset" : "invite",
+    );
+    return Response.json({
+      user: created,
+      inviteUrl: `${new URL(request.url).origin}/?invite=${encodeURIComponent(token)}`,
+      expiresInHours: 48,
+    }, { status: 201 });
   } catch (error) {
     return errorResponse(error);
   }
@@ -76,7 +87,7 @@ export async function POST(request: Request) {
 
 export async function PATCH(request: Request) {
   try {
-    const auth = await requireAdmin(request);
+    const auth = await requirePlatformOwner(request);
     const payload = await request.json() as {
       id?: string;
       status?: "active" | "invited" | "suspended";
@@ -88,6 +99,13 @@ export async function PATCH(request: Request) {
       return Response.json({ error: "Você não pode suspender seu próprio acesso." }, { status: 400 });
     }
     const db = await getDb();
+    const target = await db.select().from(users).where(eq(users.id, payload.id)).get();
+    if (!target) return Response.json({ error: "Usuário não encontrado." }, { status: 404 });
+    if (target.role === "superadmin") {
+      return Response.json({
+        error: "A conta proprietária não pode ser alterada por este painel.",
+      }, { status: 400 });
+    }
     await db.update(users).set({
       ...(payload.status && ["active", "invited", "suspended"].includes(payload.status)
         ? { status: payload.status }

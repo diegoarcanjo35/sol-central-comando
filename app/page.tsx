@@ -78,6 +78,7 @@ type DashboardData = {
     isAdmin: boolean;
     isSuperAdmin: boolean;
     onboardingCompleted: boolean;
+    hasPassword: boolean;
   };
   conversation: {
     id: string;
@@ -112,6 +113,10 @@ export default function Home() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [authRequired, setAuthRequired] = useState(false);
+  const [inviteToken] = useState(() => typeof window === "undefined"
+    ? ""
+    : new URLSearchParams(window.location.search).get("invite") ?? "");
   const [assistantOpen, setAssistantOpen] = useState(false);
   const [assistantBusy, setAssistantBusy] = useState(false);
   const [message, setMessage] = useState("");
@@ -128,8 +133,16 @@ export default function Home() {
     if (!quiet) setLoading(true);
     try {
       const response = await fetch("/api/dashboard", { cache: "no-store" });
-      const payload = await response.json() as DashboardData & { error?: string };
-      if (!response.ok) throw new Error(payload.error ?? "Não foi possível carregar o painel.");
+      const payload = await response.json() as DashboardData & { error?: string; code?: string };
+      if (!response.ok) {
+        if (response.status === 401 || payload.code === "AUTH_REQUIRED") {
+          setAuthRequired(true);
+          setData(null);
+          return;
+        }
+        throw new Error(payload.error ?? "Não foi possível carregar o painel.");
+      }
+      setAuthRequired(false);
       setData(payload);
       setChat(payload.conversation.messages ?? []);
       setError("");
@@ -277,7 +290,11 @@ export default function Home() {
     }
   }
 
+  if (inviteToken) return <InviteScreen token={inviteToken} />;
   if (loading) return <LoadingScreen />;
+  if (authRequired || !data) {
+    return <LoginScreen onLogin={async () => { setAuthRequired(false); await loadDashboard(); }} error={error} />;
+  }
   if (data && !data.user.onboardingCompleted) {
     return <OnboardingScreen userName={data.user.name} onComplete={() => loadDashboard()} />;
   }
@@ -401,6 +418,7 @@ export default function Home() {
             onReload={() => loadDashboard(true)}
             onError={setError}
             isAdmin={Boolean(data?.user.isSuperAdmin)}
+            hasPassword={Boolean(data?.user.hasPassword)}
           />
         )}
 
@@ -612,13 +630,14 @@ function ProjectDialog({ project, onClose, onSaved, onError }: {
   );
 }
 
-function SettingsPanel({ settings, credentials, onProvider, onReload, onError, isAdmin }: {
+function SettingsPanel({ settings, credentials, onProvider, onReload, onError, isAdmin, hasPassword }: {
   settings: Settings;
   credentials: CredentialStatus;
   onProvider: (provider: Provider) => Promise<void>;
   onReload: () => Promise<void>;
   onError: (message: string) => void;
   isAdmin: boolean;
+  hasPassword: boolean;
 }) {
   const [keys, setKeys] = useState<Record<Provider, string>>({ openai: "", google: "", anthropic: "" });
   const [busy, setBusy] = useState("");
@@ -697,6 +716,34 @@ function SettingsPanel({ settings, credentials, onProvider, onReload, onError, i
       setBusy("");
     }
   }
+  async function savePassword(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setBusy("password");
+    const formElement = event.currentTarget;
+    const form = new FormData(formElement);
+    try {
+      const response = await fetch("/api/auth/password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          password: form.get("password"),
+          confirmation: form.get("confirmation"),
+        }),
+      });
+      const payload = await response.json() as { error?: string };
+      if (!response.ok) throw new Error(payload.error ?? "Erro ao definir a senha.");
+      formElement.reset();
+      await onReload();
+    } catch (passwordError) {
+      onError(passwordError instanceof Error ? passwordError.message : "Erro ao definir a senha.");
+    } finally {
+      setBusy("");
+    }
+  }
+  async function logout() {
+    await fetch("/api/auth/logout", { method: "POST" });
+    window.location.assign("/");
+  }
   return (
     <div className="page narrow">
       <Heading eyebrow="PERSONALIZAÇÃO" title="Sua IA e sua direção" />
@@ -747,7 +794,123 @@ function SettingsPanel({ settings, credentials, onProvider, onReload, onError, i
         <label className="check-row"><input name="adhdSupport" type="checkbox" defaultChecked={settings.adhdSupport} /> Ativar apoio contra dispersão e esquecimento</label>
         <button className="primary-button" disabled={busy === "profile"}>{busy === "profile" ? "Salvando…" : "Salvar personalidade"}</button>
       </form>
+      <form className="panel settings profile-settings" onSubmit={savePassword}>
+        <PanelTitle eyebrow="ACESSO" title={hasPassword ? "Alterar senha" : "Defina sua senha antes de liberar o aplicativo"} />
+        {!hasPassword && <div className="security"><span>!</span><p><strong>Etapa obrigatória para a publicação.</strong><br />Só retire a restrição da Cloudflare depois que esta senha estiver salva.</p></div>}
+        <div className="form-grid">
+          <label>Nova senha<input name="password" type="password" minLength={10} required autoComplete="new-password" /></label>
+          <label>Confirmar senha<input name="confirmation" type="password" minLength={10} required autoComplete="new-password" /></label>
+        </div>
+        <button className="primary-button" disabled={busy === "password"}>{busy === "password" ? "Salvando…" : hasPassword ? "Alterar senha" : "Criar minha senha"}</button>
+      </form>
+      <button className="logout-button" onClick={() => void logout()}>Sair da conta</button>
     </div>
+  );
+}
+
+function LoginScreen({ onLogin, error: initialError }: { onLogin: () => Promise<void>; error?: string }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState(initialError ?? "");
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setBusy(true);
+    setError("");
+    const form = new FormData(event.currentTarget);
+    try {
+      const response = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: form.get("email"),
+          password: form.get("password"),
+        }),
+      });
+      const payload = await response.json() as { error?: string };
+      if (!response.ok) throw new Error(payload.error ?? "Não foi possível entrar.");
+      await onLogin();
+    } catch (loginError) {
+      setError(loginError instanceof Error ? loginError.message : "Não foi possível entrar.");
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <main className="auth-shell">
+      <form className="auth-card" onSubmit={submit}>
+        <Brand />
+        <p className="eyebrow">ACESSO SEGURO</p>
+        <h1>Entre no seu comando.</h1>
+        <p>Cada conta possui projetos, memória e conversas completamente separados.</p>
+        {error && <div className="inline-error">{error}</div>}
+        <label>E-mail<input name="email" type="email" required autoComplete="email" autoFocus /></label>
+        <label>Senha<input name="password" type="password" required autoComplete="current-password" /></label>
+        <button className="primary-button" disabled={busy}>{busy ? "Entrando…" : "Entrar"}</button>
+        <small>Primeiro acesso? Use o link enviado pelo administrador.</small>
+      </form>
+    </main>
+  );
+}
+
+function InviteScreen({ token }: { token: string }) {
+  const [invitation, setInvitation] = useState<{ name: string; email: string; kind: string } | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  useEffect(() => {
+    void fetch(`/api/auth/invite?token=${encodeURIComponent(token)}`, { cache: "no-store" })
+      .then(async (response) => {
+        const payload = await response.json() as {
+          invitation?: { name: string; email: string; kind: string };
+          error?: string;
+        };
+        if (!response.ok || !payload.invitation) throw new Error(payload.error ?? "Convite inválido.");
+        setInvitation(payload.invitation);
+      })
+      .catch((inviteError) => setError(inviteError instanceof Error ? inviteError.message : "Convite inválido."))
+      .finally(() => setLoading(false));
+  }, [token]);
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setBusy(true);
+    setError("");
+    const form = new FormData(event.currentTarget);
+    try {
+      const response = await fetch("/api/auth/invite", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          token,
+          password: form.get("password"),
+          confirmation: form.get("confirmation"),
+        }),
+      });
+      const payload = await response.json() as { error?: string };
+      if (!response.ok) throw new Error(payload.error ?? "Não foi possível ativar o acesso.");
+      window.location.assign("/");
+    } catch (acceptError) {
+      setError(acceptError instanceof Error ? acceptError.message : "Não foi possível ativar o acesso.");
+      setBusy(false);
+    }
+  }
+  return (
+    <main className="auth-shell">
+      <form className="auth-card" onSubmit={submit}>
+        <Brand />
+        <p className="eyebrow">{invitation?.kind === "reset" ? "REDEFINIR ACESSO" : "CONVITE SOL"}</p>
+        <h1>{loading ? "Validando convite…" : invitation ? `Olá, ${invitation.name}.` : "Convite indisponível"}</h1>
+        {invitation && <p>Crie sua senha para acessar o workspace privado vinculado a <strong>{invitation.email}</strong>.</p>}
+        {error && <div className="inline-error">{error}</div>}
+        {invitation && (
+          <>
+            <label>Senha<input name="password" type="password" minLength={10} required autoComplete="new-password" autoFocus /></label>
+            <label>Confirmar senha<input name="confirmation" type="password" minLength={10} required autoComplete="new-password" /></label>
+            <small>Use ao menos 10 caracteres, com letras e números.</small>
+            <button className="primary-button" disabled={busy}>{busy ? "Ativando…" : invitation.kind === "reset" ? "Salvar nova senha" : "Criar conta e continuar"}</button>
+          </>
+        )}
+        {!loading && !invitation && <button type="button" className="text-button" onClick={() => window.location.assign("/")}>Voltar ao login</button>}
+      </form>
+    </main>
   );
 }
 
@@ -826,6 +989,7 @@ type AdminUser = {
   plan: string;
   onboardingCompleted: boolean;
   lastLoginAt: string | null;
+  hasPassword: boolean;
   usage: { requests: number; inputTokens: number; outputTokens: number; audioBytes: number };
 };
 
@@ -833,6 +997,7 @@ function AdminPanel({ onError }: { onError: (message: string) => void }) {
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [busy, setBusy] = useState("");
   const [accessNote, setAccessNote] = useState("");
+  const [inviteUrl, setInviteUrl] = useState("");
   async function load() {
     const response = await fetch("/api/admin/users", { cache: "no-store" });
     const payload = await response.json() as { users?: AdminUser[]; accessNote?: string; error?: string };
@@ -866,12 +1031,38 @@ function AdminPanel({ onError }: { onError: (message: string) => void }) {
           plan: form.get("plan"),
         }),
       });
-      const payload = await response.json() as { error?: string };
+      const payload = await response.json() as { error?: string; inviteUrl?: string };
       if (!response.ok) throw new Error(payload.error ?? "Erro ao cadastrar usuário.");
+      setInviteUrl(payload.inviteUrl ?? "");
       formElement.reset();
       await load();
     } catch (inviteError) {
       onError(inviteError instanceof Error ? inviteError.message : "Erro ao cadastrar usuário.");
+    } finally {
+      setBusy("");
+    }
+  }
+  async function generateAccess(user: AdminUser) {
+    setBusy(`invite-${user.id}`);
+    try {
+      const response = await fetch("/api/admin/users", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: user.name,
+          email: user.email,
+          role: "member",
+          plan: user.plan,
+        }),
+      });
+      const payload = await response.json() as { error?: string; inviteUrl?: string };
+      if (!response.ok || !payload.inviteUrl) {
+        throw new Error(payload.error ?? "Erro ao gerar o acesso.");
+      }
+      setInviteUrl(payload.inviteUrl);
+      await navigator.clipboard?.writeText(payload.inviteUrl);
+    } catch (inviteError) {
+      onError(inviteError instanceof Error ? inviteError.message : "Erro ao gerar o acesso.");
     } finally {
       setBusy("");
     }
@@ -915,6 +1106,14 @@ function AdminPanel({ onError }: { onError: (message: string) => void }) {
         </div>
         <p className="admin-note">{accessNote || "O usuário receberá um espaço privado e passará pelo onboarding."}</p>
         <button className="primary-button" disabled={busy === "invite"}>{busy === "invite" ? "Cadastrando…" : "Criar acesso"}</button>
+        {inviteUrl && (
+          <div className="invite-result">
+            <strong>Link pronto — envie por WhatsApp ou e-mail</strong>
+            <input value={inviteUrl} readOnly onFocus={(event) => event.currentTarget.select()} />
+            <button type="button" onClick={() => void navigator.clipboard?.writeText(inviteUrl)}>Copiar link</button>
+            <small>Válido por 48 horas e utilizável uma única vez.</small>
+          </div>
+        )}
       </form>
       <div className="panel users-table">
         {users.map((user) => (
@@ -923,9 +1122,16 @@ function AdminPanel({ onError }: { onError: (message: string) => void }) {
             <div><strong>{user.name}</strong><small>{user.email}</small></div>
             <span className={`status-pill ${user.status}`}>{user.status === "active" ? "Ativo" : user.status === "suspended" ? "Suspenso" : "Convidado"}</span>
             <div className="usage-cell"><strong>{user.usage.requests}</strong><small>chamadas · {(user.usage.inputTokens + user.usage.outputTokens).toLocaleString("pt-BR")} tokens</small></div>
-            <button className={user.status === "suspended" ? "primary-button" : "danger-button"} onClick={() => void setStatus(user)} disabled={busy === user.id}>
-              {user.status === "suspended" ? "Reativar" : "Suspender"}
-            </button>
+            <div className="user-actions">
+              {user.role !== "superadmin" && user.status !== "suspended" && (
+                <button className="primary-button" onClick={() => void generateAccess(user)} disabled={busy === `invite-${user.id}`}>
+                  {busy === `invite-${user.id}` ? "Gerando…" : user.hasPassword ? "Redefinir acesso" : "Gerar convite"}
+                </button>
+              )}
+              <button className={user.status === "suspended" ? "primary-button" : "danger-button"} onClick={() => void setStatus(user)} disabled={busy === user.id || user.role === "superadmin"}>
+                {user.status === "suspended" ? "Reativar" : "Suspender"}
+              </button>
+            </div>
           </article>
         ))}
       </div>

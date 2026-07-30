@@ -1,5 +1,26 @@
 # Histórico de versões
 
+## [0.7.0] — 2026-07-30
+
+### MVP de acesso
+
+- login próprio do SOL com e-mail e senha;
+- senhas protegidas com PBKDF2-SHA-256, salt individual e 210 mil iterações;
+- sessões persistentes com tokens aleatórios armazenados somente como hash;
+- convites individuais de uso único, válidos por 48 horas;
+- criação e redefinição de senha pelo mesmo fluxo seguro;
+- revogação automática de links anteriores quando um novo é gerado;
+- bloqueio temporário após tentativas repetidas de login;
+- logout e suspensão de contas;
+- transição compatível com o acesso atual da Cloudflare, sem risco de bloquear o proprietário.
+
+### Mantido fora do MVP
+
+- envio automático de e-mail;
+- cobrança e assinaturas;
+- notificações push;
+- importação da memória do ChatGPT.
+
 ## [0.6.0] — 2026-07-30
 
 ### Adicionado

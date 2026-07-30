@@ -1,5 +1,6 @@
 import { and, asc, desc, eq, gt, ne } from "drizzle-orm";
 import { getDb } from "../db";
+import { sessionUser } from "./auth";
 import {
   assistantProfiles,
   contextCache,
@@ -72,22 +73,22 @@ export function assertAuthenticated(request: Request) {
     openAiEmail ??
     (cloudflareToken && cloudflareEmail ? cloudflareEmail : null);
 
-  if (!email && !isLocal) {
-    throw Response.json({ error: "Não autorizado." }, { status: 401 });
-  }
-
+  if (!email && !isLocal) return null;
   return (email ?? "elevensites04@gmail.com").trim().toLowerCase();
 }
 
 export async function requireUser(request: Request): Promise<AuthContext> {
-  const email = assertAuthenticated(request);
   const db = await getDb();
-  const user = await db.select().from(users).where(eq(users.email, email)).get();
+  let user = await sessionUser(request);
+  if (!user) {
+    const email = assertAuthenticated(request);
+    user = email ? await db.select().from(users).where(eq(users.email, email)).get() ?? null : null;
+  }
   if (!user) {
     throw Response.json({
-      error: "Seu acesso ainda não foi liberado pelo administrador do SOL.",
-      code: "USER_NOT_INVITED",
-    }, { status: 403 });
+      error: "Entre para acessar o SOL.",
+      code: "AUTH_REQUIRED",
+    }, { status: 401 });
   }
   if (user.status === "suspended") {
     throw Response.json({ error: "Este acesso está suspenso." }, { status: 403 });
@@ -105,13 +106,13 @@ export async function requireUser(request: Request): Promise<AuthContext> {
   return {
     user,
     workspaceId: user.workspaceId,
-    isAdmin: user.role === "superadmin" || user.role === "admin",
+    isAdmin: user.role === "superadmin",
   };
 }
 
 export async function requireAdmin(request: Request) {
   const auth = await requireUser(request);
-  if (!auth.isAdmin) {
+  if (auth.user.role !== "superadmin" && auth.user.role !== "admin") {
     throw Response.json({ error: "Acesso exclusivo do administrador." }, { status: 403 });
   }
   return auth;
@@ -725,8 +726,12 @@ export async function createInvitedUser(input: {
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new Error("Informe um e-mail válido.");
   if (!input.name.trim()) throw new Error("Informe o nome.");
   const db = await getDb();
-  const exists = await db.select({ id: users.id }).from(users).where(eq(users.email, email)).get();
-  if (exists) throw new Error("Este e-mail já está cadastrado.");
+  const exists = await db.select().from(users).where(eq(users.email, email)).get();
+  if (exists) {
+    if (exists.role === "superadmin") throw new Error("O proprietário já possui acesso.");
+    if (exists.status === "suspended") throw new Error("Reative o usuário antes de gerar um novo acesso.");
+    return { id: exists.id, email: exists.email, workspaceId: exists.workspaceId, existing: true };
+  }
   const timestamp = nowIso();
   const userId = newId("usr");
   const workspaceId = newId("ws");
@@ -769,7 +774,7 @@ export async function createInvitedUser(input: {
       updatedAt: timestamp,
     }),
   ]);
-  return { id: userId, email, workspaceId };
+  return { id: userId, email, workspaceId, existing: false };
 }
 
 export function normalizePriority(value?: string) {

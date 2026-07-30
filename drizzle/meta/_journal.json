@@ -15,6 +15,13 @@
       "when": 1785413525383,
       "tag": "0001_multiuser_foundation",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1785421109016,
+      "tag": "0002_secure_invites",
+      "breakpoints": true
     }
   ]
 }

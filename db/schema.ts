@@ -27,6 +27,52 @@ export const workspaces = sqliteTable("workspaces", {
   updatedAt: text("updated_at").notNull(),
 });
 
+export const authCredentials = sqliteTable("auth_credentials", {
+  userId: text("user_id").primaryKey(),
+  passwordHash: text("password_hash").notNull(),
+  passwordSalt: text("password_salt").notNull(),
+  iterations: integer("iterations").notNull().default(210000),
+  updatedAt: text("updated_at").notNull(),
+});
+
+export const authSessions = sqliteTable("auth_sessions", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  tokenHash: text("token_hash").notNull(),
+  expiresAt: text("expires_at").notNull(),
+  createdAt: text("created_at").notNull(),
+  lastSeenAt: text("last_seen_at").notNull(),
+}, (table) => [
+  uniqueIndex("auth_sessions_token_idx").on(table.tokenHash),
+  index("auth_sessions_user_idx").on(table.userId),
+  index("auth_sessions_expires_idx").on(table.expiresAt),
+]);
+
+export const invitations = sqliteTable("invitations", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  tokenHash: text("token_hash").notNull(),
+  kind: text("kind").notNull().default("invite"),
+  expiresAt: text("expires_at").notNull(),
+  acceptedAt: text("accepted_at"),
+  revokedAt: text("revoked_at"),
+  createdBy: text("created_by").notNull(),
+  createdAt: text("created_at").notNull(),
+}, (table) => [
+  uniqueIndex("invitations_token_idx").on(table.tokenHash),
+  index("invitations_user_idx").on(table.userId, table.createdAt),
+  index("invitations_expires_idx").on(table.expiresAt),
+]);
+
+export const loginAttempts = sqliteTable("login_attempts", {
+  id: text("id").primaryKey(),
+  email: text("email").notNull(),
+  success: integer("success", { mode: "boolean" }).notNull().default(false),
+  createdAt: text("created_at").notNull(),
+}, (table) => [
+  index("login_attempts_email_idx").on(table.email, table.createdAt),
+]);
+
 export const assistantProfiles = sqliteTable("assistant_profiles", {
   workspaceId: text("workspace_id").primaryKey(),
   assistantName: text("assistant_name").notNull().default("SOL"),

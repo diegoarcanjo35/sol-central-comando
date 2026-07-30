@@ -4,7 +4,7 @@ Aplicativo mobile-first multiusuário para gerenciar projetos, atividades, memó
 
 ## Versão
 
-`v0.6.0 beta`
+`v0.7.0 MVP`
 
 ## Recursos
 
@@ -23,6 +23,9 @@ Aplicativo mobile-first multiusuário para gerenciar projetos, atividades, memó
 - painel administrativo para cadastrar, suspender e acompanhar o uso dos usuários;
 - APIs e provedor ativo controlados somente por administradores;
 - medição de chamadas, tokens e transcrições por usuário.
+- login próprio com senha e sessão segura;
+- convites e redefinições por link individual de uso único;
+- proteção contra tentativas repetidas de login.
 
 ## Provedores padrão
 
@@ -46,9 +49,10 @@ As chaves e o provedor ativo são administrados em **Ajustes** apenas pelo admin
 ## Primeiro acesso de um usuário
 
 1. O administrador cadastra nome e e-mail na aba **Admin**.
-2. O mesmo e-mail é autorizado na política do Cloudflare Access.
-3. No primeiro acesso, o usuário personaliza sua IA.
-4. Um workspace privado é criado automaticamente e permanece separado dos demais.
+2. O SOL gera um link válido por 48 horas.
+3. O administrador envia o link por WhatsApp ou e-mail.
+4. A pessoa cria a senha e personaliza sua IA.
+5. Um workspace privado é criado automaticamente e permanece separado dos demais.
 
 O SOL não lê automaticamente a memória privada de uma conta do ChatGPT. Uma importação revisável por arquivo de exportação está prevista para uma versão futura.
 

@@ -1,4 +1,5 @@
 import { errorResponse, getAssistantProfile, requireUser } from "../../../lib/sol";
+import { hasPassword } from "../../../lib/auth";
 
 export async function GET(request: Request) {
   try {
@@ -12,6 +13,7 @@ export async function GET(request: Request) {
         isAdmin: auth.isAdmin,
         isSuperAdmin: auth.user.role === "superadmin",
         onboardingCompleted: auth.user.onboardingCompleted,
+        hasPassword: await hasPassword(auth.user.id),
       },
       profile: await getAssistantProfile(auth.workspaceId),
     });
