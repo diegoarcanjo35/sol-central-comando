@@ -31,7 +31,7 @@ export const authCredentials = sqliteTable("auth_credentials", {
   userId: text("user_id").primaryKey(),
   passwordHash: text("password_hash").notNull(),
   passwordSalt: text("password_salt").notNull(),
-  iterations: integer("iterations").notNull().default(210000),
+  iterations: integer("iterations").notNull().default(100000),
   updatedAt: text("updated_at").notNull(),
 });
 

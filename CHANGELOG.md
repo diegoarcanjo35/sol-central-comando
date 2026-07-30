@@ -1,11 +1,21 @@
 # Histórico de versões
 
+## [0.7.1] — 2026-07-30
+
+### Correção urgente
+
+- ajusta o PBKDF2-SHA-256 para o limite de 100 mil iterações aceito pela Cloudflare;
+- corrige a criação e a validação de senhas no Worker;
+- adiciona “Esqueci minha senha” com link único enviado por e-mail;
+- limita solicitações repetidas de recuperação;
+- não altera usuários, projetos, tarefas ou demais dados existentes.
+
 ## [0.7.0] — 2026-07-30
 
 ### MVP de acesso
 
 - login próprio do SOL com e-mail e senha;
-- senhas protegidas com PBKDF2-SHA-256, salt individual e 210 mil iterações;
+- senhas protegidas com PBKDF2-SHA-256, salt individual e 100 mil iterações;
 - sessões persistentes com tokens aleatórios armazenados somente como hash;
 - convites individuais de uso único, válidos por 48 horas;
 - criação e redefinição de senha pelo mesmo fluxo seguro;
@@ -16,7 +26,6 @@
 
 ### Mantido fora do MVP
 
-- envio automático de e-mail;
 - cobrança e assinaturas;
 - notificações push;
 - importação da memória do ChatGPT.

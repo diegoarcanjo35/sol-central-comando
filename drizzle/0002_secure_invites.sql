@@ -2,7 +2,7 @@ CREATE TABLE `auth_credentials` (
 	`user_id` text PRIMARY KEY NOT NULL,
 	`password_hash` text NOT NULL,
 	`password_salt` text NOT NULL,
-	`iterations` integer DEFAULT 210000 NOT NULL,
+	`iterations` integer DEFAULT 100000 NOT NULL,
 	`updated_at` text NOT NULL
 );
 --> statement-breakpoint

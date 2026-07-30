@@ -811,6 +811,8 @@ function SettingsPanel({ settings, credentials, onProvider, onReload, onError, i
 function LoginScreen({ onLogin, error: initialError }: { onLogin: () => Promise<void>; error?: string }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(initialError ?? "");
+  const [forgotPassword, setForgotPassword] = useState(false);
+  const [message, setMessage] = useState("");
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setBusy(true);
@@ -834,18 +836,55 @@ function LoginScreen({ onLogin, error: initialError }: { onLogin: () => Promise<
       setBusy(false);
     }
   }
+  async function requestReset(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setBusy(true);
+    setError("");
+    setMessage("");
+    const form = new FormData(event.currentTarget);
+    try {
+      const response = await fetch("/api/auth/forgot", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: form.get("email") }),
+      });
+      const payload = await response.json() as { error?: string; message?: string };
+      if (!response.ok) throw new Error(payload.error ?? "Não foi possível enviar a recuperação.");
+      setMessage(payload.message ?? "Confira seu e-mail.");
+    } catch (resetError) {
+      setError(resetError instanceof Error ? resetError.message : "Não foi possível enviar a recuperação.");
+    } finally {
+      setBusy(false);
+    }
+  }
   return (
     <main className="auth-shell">
-      <form className="auth-card" onSubmit={submit}>
+      <form className="auth-card" onSubmit={forgotPassword ? requestReset : submit}>
         <Brand />
         <p className="eyebrow">ACESSO SEGURO</p>
-        <h1>Entre no seu comando.</h1>
-        <p>Cada conta possui projetos, memória e conversas completamente separados.</p>
+        <h1>{forgotPassword ? "Recupere seu acesso." : "Entre no seu comando."}</h1>
+        <p>{forgotPassword
+          ? "Enviaremos um link de uso único para você criar uma nova senha."
+          : "Cada conta possui projetos, memória e conversas completamente separados."}</p>
         {error && <div className="inline-error">{error}</div>}
+        {message && <div className="inline-success">{message}</div>}
         <label>E-mail<input name="email" type="email" required autoComplete="email" autoFocus /></label>
-        <label>Senha<input name="password" type="password" required autoComplete="current-password" /></label>
-        <button className="primary-button" disabled={busy}>{busy ? "Entrando…" : "Entrar"}</button>
-        <small>Primeiro acesso? Use o link enviado pelo administrador.</small>
+        {!forgotPassword && <label>Senha<input name="password" type="password" required autoComplete="current-password" /></label>}
+        <button className="primary-button" disabled={busy}>
+          {busy ? "Aguarde…" : forgotPassword ? "Enviar link de recuperação" : "Entrar"}
+        </button>
+        <button
+          type="button"
+          className="text-button"
+          onClick={() => {
+            setForgotPassword((current) => !current);
+            setError("");
+            setMessage("");
+          }}
+        >
+          {forgotPassword ? "Voltar ao login" : "Esqueci minha senha"}
+        </button>
+        {!forgotPassword && <small>Primeiro acesso? Use o link enviado pelo administrador.</small>}
       </form>
     </main>
   );

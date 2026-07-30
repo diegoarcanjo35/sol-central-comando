@@ -185,6 +185,7 @@ button { cursor:pointer; }
 .auth-card>.primary-button { width:100%; margin-top:4px; }
 .auth-card>small { color:var(--muted); font-size:9px; line-height:1.5; text-align:center; }
 .auth-card .text-button { border:0; background:transparent; color:var(--violet); font-size:10px; font-weight:800; text-align:center; }
+.inline-success { padding:11px 12px; border:1px solid #b9e7cf; border-radius:10px; background:#effbf4; color:#17633c; font-size:10px; line-height:1.5; }
 .logout-button { margin-top:16px; padding:10px 14px; border:1px solid #ffcbd1; border-radius:10px; background:#fff; color:#b43c4b; font-size:10px; font-weight:800; }
 .admin-metrics { margin:0 0 18px; }
 .invite-form { display:grid; gap:14px; margin-bottom:18px; }

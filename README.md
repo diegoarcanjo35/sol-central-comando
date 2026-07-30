@@ -4,7 +4,7 @@ Aplicativo mobile-first multiusuário para gerenciar projetos, atividades, memó
 
 ## Versão
 
-`v0.7.0 MVP`
+`v0.7.1 MVP`
 
 ## Recursos
 
@@ -25,6 +25,7 @@ Aplicativo mobile-first multiusuário para gerenciar projetos, atividades, memó
 - medição de chamadas, tokens e transcrições por usuário.
 - login próprio com senha e sessão segura;
 - convites e redefinições por link individual de uso único;
+- recuperação de senha por e-mail via Resend;
 - proteção contra tentativas repetidas de login.
 
 ## Provedores padrão
@@ -44,7 +45,7 @@ As chaves e o provedor ativo são administrados em **Ajustes** apenas pelo admin
 - `SOL_ENCRYPTION_KEY` existe somente nas variáveis protegidas da hospedagem;
 - cada consulta e alteração é limitada ao workspace do usuário autenticado;
 - cadastros são liberados por convite durante a fase beta;
-- além do cadastro no SOL, cada e-mail precisa ser autorizado na política do Cloudflare Access.
+- a proteção do próprio SOL permanece ativa quando a URL de produção é pública.
 
 ## Primeiro acesso de um usuário
 

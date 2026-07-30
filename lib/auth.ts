@@ -10,7 +10,8 @@ import {
 
 const SESSION_COOKIE = "sol_session";
 const SESSION_DAYS = 30;
-const PASSWORD_ITERATIONS = 210_000;
+// Cloudflare Workers currently rejects PBKDF2 iteration counts above 100,000.
+const PASSWORD_ITERATIONS = 100_000;
 
 function bytesToBase64Url(bytes: Uint8Array) {
   let binary = "";
@@ -185,6 +186,19 @@ export async function loginIsRateLimited(email: string) {
     .where(and(eq(loginAttempts.email, email), gt(loginAttempts.createdAt, since)))
     .orderBy(desc(loginAttempts.createdAt)).limit(10).all();
   return attempts.filter((attempt) => !attempt.success).length >= 8;
+}
+
+export async function passwordResetIsRateLimited(userId: string) {
+  const db = await getDb();
+  const since = new Date(Date.now() - 15 * 60_000).toISOString();
+  const requests = await db.select({ id: invitations.id }).from(invitations)
+    .where(and(
+      eq(invitations.userId, userId),
+      eq(invitations.kind, "reset"),
+      gt(invitations.createdAt, since),
+    ))
+    .limit(3).all();
+  return requests.length >= 3;
 }
 
 export async function createInvitation(userId: string, createdBy: string, kind: "invite" | "reset" = "invite") {
