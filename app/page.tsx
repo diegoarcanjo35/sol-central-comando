@@ -2,7 +2,7 @@
 
 import { FormEvent, useEffect, useRef, useState } from "react";
 
-type Tab = "inicio" | "atividades" | "projetos" | "historico" | "ajustes";
+type Tab = "inicio" | "atividades" | "projetos" | "historico" | "ajustes" | "admin";
 type Provider = "openai" | "google" | "anthropic";
 type Project = {
   id: string;
@@ -53,6 +53,15 @@ type Settings = {
   userName: string;
   mission: string;
   monthlyGoal: number;
+  assistantName: string;
+  motivation: string;
+  tone: string;
+  challengeLevel: number;
+  initiativeLevel: number;
+  adhdSupport: boolean;
+  focusAreas: string;
+  workHours: string;
+  quietHours: string;
 };
 type CredentialStatus = Record<Provider, { configured: boolean; updatedAt: string | null }>;
 type DashboardData = {
@@ -60,7 +69,16 @@ type DashboardData = {
   tasks: Task[];
   history: HistoryItem[];
   settings: Settings;
-  credentials: CredentialStatus;
+  credentials: CredentialStatus | null;
+  user: {
+    id: string;
+    email: string;
+    name: string;
+    role: string;
+    isAdmin: boolean;
+    isSuperAdmin: boolean;
+    onboardingCompleted: boolean;
+  };
   conversation: {
     id: string;
     greetedToday: boolean;
@@ -74,6 +92,7 @@ const nav: { id: Tab; label: string; icon: string }[] = [
   { id: "projetos", label: "Projetos", icon: "▦" },
   { id: "historico", label: "Histórico", icon: "↺" },
   { id: "ajustes", label: "Ajustes", icon: "⚙" },
+  { id: "admin", label: "Admin", icon: "◆" },
 ];
 
 const providerLabels: Record<Provider, string> = {
@@ -129,6 +148,7 @@ export default function Home() {
   const tasks = data?.tasks ?? [];
   const settings = data?.settings;
   const credentials = data?.credentials ?? emptyCredentials;
+  const visibleNav = nav.filter((item) => item.id !== "admin" || data?.user.isAdmin);
   const openTasks = tasks.filter((task) => task.status !== "concluida");
   const now = new Date();
   const overdue = openTasks.filter((task) => task.dueAt && new Date(task.dueAt) < now);
@@ -258,13 +278,16 @@ export default function Home() {
   }
 
   if (loading) return <LoadingScreen />;
+  if (data && !data.user.onboardingCompleted) {
+    return <OnboardingScreen userName={data.user.name} onComplete={() => loadDashboard()} />;
+  }
 
   return (
     <main className="app-shell">
       <aside className="sidebar">
         <Brand />
         <nav>
-          {nav.map((item) => (
+          {visibleNav.map((item) => (
             <button className={tab === item.id ? "active" : ""} key={item.id} onClick={() => setTab(item.id)}>
               <span>{item.icon}</span>{item.label}
             </button>
@@ -280,7 +303,7 @@ export default function Home() {
             <p className="eyebrow">{dateLabel()}</p>
             <h1>{tab === "inicio" ? greetingTitle(settings?.userName ?? "Diego") : nav.find((item) => item.id === tab)?.label}</h1>
           </div>
-          <button className="avatar" onClick={() => setTab("ajustes")}>DA</button>
+          <button className="avatar" onClick={() => setTab("ajustes")}>{initials(data?.user.name ?? "SOL")}</button>
         </header>
 
         {error && <button className="error-banner" onClick={() => setError("")}>{error}<span>×</span></button>}
@@ -377,7 +400,12 @@ export default function Home() {
             onProvider={changeProvider}
             onReload={() => loadDashboard(true)}
             onError={setError}
+            isAdmin={Boolean(data?.user.isSuperAdmin)}
           />
+        )}
+
+        {tab === "admin" && data?.user.isAdmin && (
+          <AdminPanel onError={setError} />
         )}
       </section>
 
@@ -385,7 +413,7 @@ export default function Home() {
         <span>✦</span><small>SOL</small>
       </button>
       <nav className="mobile-nav">
-        {nav.slice(0, 4).map((item) => (
+        {visibleNav.filter((item) => item.id !== "ajustes").map((item) => (
           <button className={tab === item.id ? "active" : ""} key={item.id} onClick={() => setTab(item.id)}>
             <span>{item.icon}</span><small>{item.label}</small>
           </button>
@@ -397,13 +425,13 @@ export default function Home() {
           <section className="assistant" onClick={(event) => event.stopPropagation()}>
             <div className="handle" />
             <header>
-              <div><span className="sol">S</span><p><strong>SOL</strong><small>{providerLabels[settings?.activeProvider ?? "openai"]} · memória compartilhada</small></p></div>
+              <div><span className="sol">{(settings?.assistantName ?? "SOL")[0]}</span><p><strong>{settings?.assistantName ?? "SOL"}</strong><small>{providerLabels[settings?.activeProvider ?? "openai"]} · memória privada</small></p></div>
               <button onClick={() => setAssistantOpen(false)} aria-label="Fechar conversa">×</button>
             </header>
             <div className="assistant-scroll">
               {!chat.length && (
                 <div className="assistant-message">
-                  {data?.conversation.greetedToday ? "Vamos direto ao ponto. O que precisa ser resolvido agora?" : "Fala, Diego. O que vamos resolver agora?"}
+                  {data?.conversation.greetedToday ? "Vamos direto ao ponto. O que precisa ser resolvido agora?" : `Fala, ${settings?.userName ?? "você"}. O que vamos resolver agora?`}
                 </div>
               )}
               {chat.map((item, index) => (
@@ -584,12 +612,13 @@ function ProjectDialog({ project, onClose, onSaved, onError }: {
   );
 }
 
-function SettingsPanel({ settings, credentials, onProvider, onReload, onError }: {
+function SettingsPanel({ settings, credentials, onProvider, onReload, onError, isAdmin }: {
   settings: Settings;
   credentials: CredentialStatus;
   onProvider: (provider: Provider) => Promise<void>;
   onReload: () => Promise<void>;
   onError: (message: string) => void;
+  isAdmin: boolean;
 }) {
   const [keys, setKeys] = useState<Record<Provider, string>>({ openai: "", google: "", anthropic: "" });
   const [busy, setBusy] = useState("");
@@ -617,16 +646,23 @@ function SettingsPanel({ settings, credentials, onProvider, onReload, onError }:
     setBusy("profile");
     const form = new FormData(event.currentTarget);
     try {
-      const response = await fetch("/api/settings", {
+      const response = await fetch("/api/onboarding", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           userName: form.get("userName"),
           monthlyGoal: form.get("monthlyGoal"),
           mission: form.get("mission"),
-          openaiModel: form.get("openaiModel"),
-          googleModel: form.get("googleModel"),
-          anthropicModel: form.get("anthropicModel"),
+          motivation: form.get("motivation"),
+          assistantName: form.get("assistantName"),
+          tone: form.get("tone"),
+          challengeLevel: form.get("challengeLevel"),
+          initiativeLevel: form.get("initiativeLevel"),
+          adhdSupport: form.get("adhdSupport") === "on",
+          focusAreas: form.get("focusAreas"),
+          workHours: form.get("workHours"),
+          quietHours: form.get("quietHours"),
+          complete: true,
         }),
       });
       const payload = await response.json() as { error?: string };
@@ -638,39 +674,260 @@ function SettingsPanel({ settings, credentials, onProvider, onReload, onError }:
       setBusy("");
     }
   }
+  async function saveModels(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setBusy("models");
+    const form = new FormData(event.currentTarget);
+    try {
+      const response = await fetch("/api/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          openaiModel: form.get("openaiModel"),
+          googleModel: form.get("googleModel"),
+          anthropicModel: form.get("anthropicModel"),
+        }),
+      });
+      const payload = await response.json() as { error?: string };
+      if (!response.ok) throw new Error(payload.error ?? "Erro ao salvar os modelos.");
+      await onReload();
+    } catch (modelError) {
+      onError(modelError instanceof Error ? modelError.message : "Erro ao salvar os modelos.");
+    } finally {
+      setBusy("");
+    }
+  }
   return (
     <div className="page narrow">
-      <Heading eyebrow="CONTROLE" title="Provedores de IA" />
-      <div className="panel settings">
-        <label>IA ativa agora</label>
-        <div className="providers">
-          {(Object.keys(providerLabels) as Provider[]).map((provider) => (
-            <button className={settings.activeProvider === provider ? "active" : ""} onClick={() => void onProvider(provider)} key={provider}>
-              <span>{providerLabels[provider][0]}</span><div>{providerLabels[provider]}<small>{credentials[provider].configured ? "Configurada" : "Sem chave"}</small></div>
-            </button>
-          ))}
-        </div>
-        {(Object.keys(providerLabels) as Provider[]).map((provider) => (
-          <div className="api-row" key={provider}>
-            <div><strong>{providerLabels[provider]}</strong><small>{credentials[provider].configured ? "Chave protegida no servidor" : "Não configurada"}</small></div>
-            <input type="password" value={keys[provider]} onChange={(event) => setKeys((current) => ({ ...current, [provider]: event.target.value }))} placeholder={credentials[provider].configured ? "Digite para substituir" : "Cole a chave de API"} />
-            <button onClick={() => void saveKey(provider)} disabled={!keys[provider] || busy === provider}>{busy === provider ? "Salvando…" : "Salvar"}</button>
+      <Heading eyebrow="PERSONALIZAÇÃO" title="Sua IA e sua direção" />
+      {isAdmin && (
+        <div className="panel settings">
+          <PanelTitle eyebrow="CONTROLE GLOBAL" title="Provedores de IA" />
+          <label>IA ativa para todos os usuários</label>
+          <div className="providers">
+            {(Object.keys(providerLabels) as Provider[]).map((provider) => (
+              <button className={settings.activeProvider === provider ? "active" : ""} onClick={() => void onProvider(provider)} key={provider}>
+                <span>{providerLabels[provider][0]}</span><div>{providerLabels[provider]}<small>{credentials[provider].configured ? "Configurada" : "Sem chave"}</small></div>
+              </button>
+            ))}
           </div>
-        ))}
-        <div className="security"><span>◈</span><p><strong>As chaves não aparecem no navegador nem no GitHub.</strong><br />Elas são criptografadas antes de serem gravadas e só são descriptografadas no servidor durante uma chamada.</p></div>
-      </div>
+          {(Object.keys(providerLabels) as Provider[]).map((provider) => (
+            <div className="api-row" key={provider}>
+              <div><strong>{providerLabels[provider]}</strong><small>{credentials[provider].configured ? "Chave protegida no servidor" : "Não configurada"}</small></div>
+              <input type="password" value={keys[provider]} onChange={(event) => setKeys((current) => ({ ...current, [provider]: event.target.value }))} placeholder={credentials[provider].configured ? "Digite para substituir" : "Cole a chave de API"} />
+              <button onClick={() => void saveKey(provider)} disabled={!keys[provider] || busy === provider}>{busy === provider ? "Salvando…" : "Salvar"}</button>
+            </div>
+          ))}
+          <div className="security"><span>◈</span><p><strong>Somente administradores controlam as APIs.</strong><br />As chaves ficam criptografadas no servidor e nunca são entregues ao navegador dos usuários.</p></div>
+          <form className="model-form" onSubmit={saveModels}>
+            <div className="form-grid">
+              <label>Modelo OpenAI<input name="openaiModel" defaultValue={settings.openaiModel} /></label>
+              <label>Modelo Gemini<input name="googleModel" defaultValue={settings.googleModel} /></label>
+              <label>Modelo Claude<input name="anthropicModel" defaultValue={settings.anthropicModel} /></label>
+            </div>
+            <button className="primary-button" disabled={busy === "models"}>{busy === "models" ? "Salvando…" : "Salvar modelos"}</button>
+          </form>
+        </div>
+      )}
       <form className="panel settings profile-settings" onSubmit={saveProfile}>
-        <PanelTitle eyebrow="DIREÇÃO" title="Missão, meta e modelos" />
+        <PanelTitle eyebrow="COMPORTAMENTO" title="Como a IA deve trabalhar com você" />
         <div className="form-grid">
           <label>Seu nome<input name="userName" defaultValue={settings.userName} /></label>
+          <label>Nome da sua IA<input name="assistantName" defaultValue={settings.assistantName} /></label>
           <label>Meta mensal<input name="monthlyGoal" type="number" min="0" step="100" defaultValue={settings.monthlyGoal} /></label>
-          <label>Modelo OpenAI<input name="openaiModel" defaultValue={settings.openaiModel} /></label>
-          <label>Modelo Gemini<input name="googleModel" defaultValue={settings.googleModel} /></label>
-          <label>Modelo Claude<input name="anthropicModel" defaultValue={settings.anthropicModel} /></label>
+          <label>Tom<select name="tone" defaultValue={settings.tone}><option value="incisivo">Incisivo</option><option value="direto">Direto</option><option value="equilibrado">Equilibrado</option><option value="acolhedor">Acolhedor</option></select></label>
+          <label>Cobrança: {settings.challengeLevel}/10<input name="challengeLevel" type="range" min="1" max="10" defaultValue={settings.challengeLevel} /></label>
+          <label>Iniciativa: {settings.initiativeLevel}/10<input name="initiativeLevel" type="range" min="1" max="10" defaultValue={settings.initiativeLevel} /></label>
+          <label>Horário de trabalho<input name="workHours" defaultValue={settings.workHours} placeholder="08:00-18:00" /></label>
+          <label>Horário silencioso<input name="quietHours" defaultValue={settings.quietHours} placeholder="22:00-07:00" /></label>
         </div>
-        <label>Por que você está construindo isso?<textarea name="mission" defaultValue={settings.mission} /></label>
-        <button className="primary-button" disabled={busy === "profile"}>{busy === "profile" ? "Salvando…" : "Salvar direção"}</button>
+        <label>O que você quer transformar?<textarea name="mission" defaultValue={settings.mission} /></label>
+        <label>Por que isso não pode ser abandonado?<textarea name="motivation" defaultValue={settings.motivation} /></label>
+        <label>Áreas que devem dominar sua agenda<input name="focusAreas" defaultValue={settings.focusAreas} /></label>
+        <label className="check-row"><input name="adhdSupport" type="checkbox" defaultChecked={settings.adhdSupport} /> Ativar apoio contra dispersão e esquecimento</label>
+        <button className="primary-button" disabled={busy === "profile"}>{busy === "profile" ? "Salvando…" : "Salvar personalidade"}</button>
       </form>
+    </div>
+  );
+}
+
+function OnboardingScreen({ userName, onComplete }: { userName: string; onComplete: () => Promise<void> }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setBusy(true);
+    const form = new FormData(event.currentTarget);
+    try {
+      const response = await fetch("/api/onboarding", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userName: form.get("userName"),
+          assistantName: form.get("assistantName"),
+          mission: form.get("mission"),
+          motivation: form.get("motivation"),
+          tone: form.get("tone"),
+          challengeLevel: form.get("challengeLevel"),
+          initiativeLevel: form.get("initiativeLevel"),
+          adhdSupport: form.get("adhdSupport") === "on",
+          focusAreas: form.get("focusAreas"),
+          monthlyGoal: form.get("monthlyGoal"),
+          workHours: form.get("workHours"),
+          quietHours: form.get("quietHours"),
+          complete: true,
+        }),
+      });
+      const payload = await response.json() as { error?: string };
+      if (!response.ok) throw new Error(payload.error ?? "Não foi possível concluir.");
+      await onComplete();
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : "Não foi possível concluir.");
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <main className="onboarding-shell">
+      <form className="onboarding-card" onSubmit={submit}>
+        <Brand />
+        <p className="eyebrow">BEM-VINDO AO SOL</p>
+        <h1>Vamos construir uma IA que não deixa você se abandonar.</h1>
+        <p className="onboarding-copy">Suas respostas ficam no seu espaço privado e definem como a IA vai orientar, cobrar e priorizar.</p>
+        {error && <div className="inline-error">{error}</div>}
+        <div className="form-grid">
+          <label>Como devemos chamar você?<input name="userName" defaultValue={userName} required /></label>
+          <label>Nome da sua IA<input name="assistantName" defaultValue="SOL" required /></label>
+          <label>Tom principal<select name="tone" defaultValue="direto"><option value="incisivo">Incisivo</option><option value="direto">Direto</option><option value="equilibrado">Equilibrado</option><option value="acolhedor">Acolhedor</option></select></label>
+          <label>Meta mensal<input name="monthlyGoal" type="number" min="0" step="100" defaultValue="0" /></label>
+          <label>Nível de cobrança<input name="challengeLevel" type="range" min="1" max="10" defaultValue="8" /></label>
+          <label>Nível de iniciativa<input name="initiativeLevel" type="range" min="1" max="10" defaultValue="8" /></label>
+        </div>
+        <label>O que você quer transformar?<textarea name="mission" required placeholder="Ex.: construir receita recorrente e dar segurança à minha família." /></label>
+        <label>Por que isso não pode ser abandonado?<textarea name="motivation" placeholder="A razão que a IA deve lembrar quando você quiser desistir." /></label>
+        <label>Áreas de foco<input name="focusAreas" defaultValue="receita recorrente, automação, família" /></label>
+        <div className="form-grid">
+          <label>Horário de trabalho<input name="workHours" defaultValue="08:00-18:00" /></label>
+          <label>Horário silencioso<input name="quietHours" defaultValue="22:00-07:00" /></label>
+        </div>
+        <label className="check-row"><input name="adhdSupport" type="checkbox" defaultChecked /> Ativar apoio contra dispersão, excesso de escolhas e tarefas esquecidas</label>
+        <button className="primary-button" disabled={busy}>{busy ? "Preparando seu espaço…" : "Entrar no meu painel"}</button>
+      </form>
+    </main>
+  );
+}
+
+type AdminUser = {
+  id: string;
+  email: string;
+  name: string;
+  role: string;
+  status: string;
+  plan: string;
+  onboardingCompleted: boolean;
+  lastLoginAt: string | null;
+  usage: { requests: number; inputTokens: number; outputTokens: number; audioBytes: number };
+};
+
+function AdminPanel({ onError }: { onError: (message: string) => void }) {
+  const [users, setUsers] = useState<AdminUser[]>([]);
+  const [busy, setBusy] = useState("");
+  const [accessNote, setAccessNote] = useState("");
+  async function load() {
+    const response = await fetch("/api/admin/users", { cache: "no-store" });
+    const payload = await response.json() as { users?: AdminUser[]; accessNote?: string; error?: string };
+    if (!response.ok) throw new Error(payload.error ?? "Erro ao carregar usuários.");
+    setUsers(payload.users ?? []);
+    setAccessNote(payload.accessNote ?? "");
+  }
+  useEffect(() => {
+    void fetch("/api/admin/users", { cache: "no-store" })
+      .then(async (response) => {
+        const payload = await response.json() as { users?: AdminUser[]; accessNote?: string; error?: string };
+        if (!response.ok) throw new Error(payload.error ?? "Erro ao carregar usuários.");
+        setUsers(payload.users ?? []);
+        setAccessNote(payload.accessNote ?? "");
+      })
+      .catch((loadError) => onError(loadError instanceof Error ? loadError.message : "Erro ao carregar usuários."));
+  }, [onError]);
+  async function invite(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setBusy("invite");
+    const form = new FormData(event.currentTarget);
+    try {
+      const response = await fetch("/api/admin/users", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: form.get("name"),
+          email: form.get("email"),
+          role: form.get("role"),
+          plan: form.get("plan"),
+        }),
+      });
+      const payload = await response.json() as { error?: string };
+      if (!response.ok) throw new Error(payload.error ?? "Erro ao cadastrar usuário.");
+      event.currentTarget.reset();
+      await load();
+    } catch (inviteError) {
+      onError(inviteError instanceof Error ? inviteError.message : "Erro ao cadastrar usuário.");
+    } finally {
+      setBusy("");
+    }
+  }
+  async function setStatus(user: AdminUser) {
+    const nextStatus = user.status === "suspended" ? "active" : "suspended";
+    setBusy(user.id);
+    try {
+      const response = await fetch("/api/admin/users", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: user.id, status: nextStatus }),
+      });
+      const payload = await response.json() as { error?: string };
+      if (!response.ok) throw new Error(payload.error ?? "Erro ao atualizar usuário.");
+      await load();
+    } catch (updateError) {
+      onError(updateError instanceof Error ? updateError.message : "Erro ao atualizar usuário.");
+    } finally {
+      setBusy("");
+    }
+  }
+  const totalRequests = users.reduce((sum, user) => sum + user.usage.requests, 0);
+  const totalTokens = users.reduce((sum, user) => sum + user.usage.inputTokens + user.usage.outputTokens, 0);
+  return (
+    <div className="page">
+      <Heading eyebrow="ADMINISTRAÇÃO" title="Usuários e consumo" />
+      <section className="metrics admin-metrics">
+        <Metric value={users.length} label="Usuários" detail="Contas cadastradas" tone="blue" />
+        <Metric value={users.filter((user) => user.status === "active").length} label="Ativos" detail="Com acesso liberado" tone="green" />
+        <Metric value={totalRequests} label="Chamadas de IA" detail="Histórico registrado" tone="amber" />
+        <Metric value={totalTokens.toLocaleString("pt-BR")} label="Tokens" detail="Entrada + saída" tone="danger" />
+      </section>
+      <form className="panel invite-form" onSubmit={invite}>
+        <PanelTitle eyebrow="NOVO ACESSO" title="Cadastrar usuário" />
+        <div className="form-grid">
+          <label>Nome<input name="name" required placeholder="Andreia" /></label>
+          <label>E-mail<input name="email" type="email" required placeholder="email@exemplo.com" /></label>
+          <input name="role" type="hidden" value="member" />
+          <label>Plano<input name="plan" defaultValue="beta" /></label>
+        </div>
+        <p className="admin-note">{accessNote || "O usuário receberá um espaço privado e passará pelo onboarding."}</p>
+        <button className="primary-button" disabled={busy === "invite"}>{busy === "invite" ? "Cadastrando…" : "Criar acesso"}</button>
+      </form>
+      <div className="panel users-table">
+        {users.map((user) => (
+          <article className="user-row" key={user.id}>
+            <span className="avatar">{initials(user.name)}</span>
+            <div><strong>{user.name}</strong><small>{user.email}</small></div>
+            <span className={`status-pill ${user.status}`}>{user.status === "active" ? "Ativo" : user.status === "suspended" ? "Suspenso" : "Convidado"}</span>
+            <div className="usage-cell"><strong>{user.usage.requests}</strong><small>chamadas · {(user.usage.inputTokens + user.usage.outputTokens).toLocaleString("pt-BR")} tokens</small></div>
+            <button className={user.status === "suspended" ? "primary-button" : "danger-button"} onClick={() => void setStatus(user)} disabled={busy === user.id}>
+              {user.status === "suspended" ? "Reativar" : "Suspender"}
+            </button>
+          </article>
+        ))}
+      </div>
     </div>
   );
 }
@@ -706,5 +963,6 @@ function priorityLabel(value: string) { return ({ critica: "Crítica", alta: "Al
 function dueLabel(value: string | null) { if (!value) return "Sem prazo"; if (isOverdue(value, "pendente")) return `Atrasada · ${dateTime(value)}`; if (isToday(value)) return `Hoje · ${new Intl.DateTimeFormat("pt-BR", { hour: "2-digit", minute: "2-digit" }).format(new Date(value))}`; return dateTime(value); }
 function focusTitle(overdue: Task[], open: Task[]) { if (overdue.length) return `Você tem ${overdue.length} ${overdue.length === 1 ? "pendência atrasada" : "pendências atrasadas"}.`; if (open.length) return "Existe trabalho aberto. Escolha e termine."; return "Painel limpo. Defina a próxima ação que gera receita."; }
 function focusText(overdue: Task[], open: Task[], mission: string) { const task = prioritizeTasks(overdue.length ? overdue : open)[0]; if (!task) return mission; return `${task.title}. ${task.reason || mission} Não abra outra frente antes de decidir isso.`; }
+function initials(value: string) { return value.trim().split(/\s+/).slice(0, 2).map((part) => part[0]?.toUpperCase() ?? "").join("") || "S"; }
 function localDateToIso(value: string) { return value ? new Date(value).toISOString() : null; }
 function isoToLocalDate(value?: string | null) { if (!value) return ""; const date = new Date(value); const offset = date.getTimezoneOffset(); return new Date(date.getTime() - offset * 60_000).toISOString().slice(0, 16); }

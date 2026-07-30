@@ -1,12 +1,13 @@
 import {
-  assertAuthenticated,
   errorResponse,
   getCredential,
+  recordUsage,
+  requireUser,
 } from "../../../lib/sol";
 
 export async function POST(request: Request) {
   try {
-    assertAuthenticated(request);
+    const auth = await requireUser(request);
     const form = await request.formData();
     const audio = form.get("audio");
     if (!(audio instanceof File)) {
@@ -27,6 +28,14 @@ export async function POST(request: Request) {
     });
     const data = await response.json() as { text?: string; error?: { message?: string } };
     if (!response.ok) throw new Error(data.error?.message ?? "Não foi possível transcrever o áudio.");
+    await recordUsage({
+      userId: auth.user.id,
+      workspaceId: auth.workspaceId,
+      provider: "openai",
+      model: "gpt-4o-mini-transcribe",
+      operation: "transcription",
+      audioBytes: audio.size,
+    });
     return Response.json({ text: data.text?.trim() ?? "" });
   } catch (error) {
     return errorResponse(error);

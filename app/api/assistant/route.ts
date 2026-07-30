@@ -1,6 +1,5 @@
 import {
   applyAssistantActions,
-  assertAuthenticated,
   assistantSystemPrompt,
   callProvider,
   errorResponse,
@@ -12,23 +11,25 @@ import {
   parseAssistantPayload,
   recentMessages,
   recordMessage,
+  recordUsage,
+  requireUser,
   type Provider,
 } from "../../../lib/sol";
 
 export async function POST(request: Request) {
   try {
-    assertAuthenticated(request);
+    const auth = await requireUser(request);
     const payload = await request.json() as { message?: string };
     const message = payload.message?.trim() ?? "";
     if (!message) return Response.json({ error: "Escreva uma mensagem." }, { status: 400 });
 
     const [config, context, conversation] = await Promise.all([
-      getSettings(),
-      loadContext(),
-      getOrCreateConversation(),
+      getSettings(auth.workspaceId),
+      loadContext(auth.workspaceId),
+      getOrCreateConversation(auth.workspaceId),
     ]);
     const provider = config.activeProvider as Provider;
-    const prior = await recentMessages(conversation.id);
+    const prior = await recentMessages(auth.workspaceId, conversation.id);
     const greeting = greetingFor(config.userName, Boolean(conversation.greetedAt));
     const userPrompt = JSON.stringify({
       currentDate: new Date().toISOString(),
@@ -40,12 +41,20 @@ export async function POST(request: Request) {
       recentConversation: prior.map((item) => ({ role: item.role, content: item.content })),
       userMessage: message,
     });
-    await recordMessage(conversation.id, "user", message);
-    const raw = await callProvider(provider, assistantSystemPrompt(config), userPrompt, config);
-    const parsed = parseAssistantPayload(raw);
-    const applied = await applyAssistantActions(parsed.actions);
-    await recordMessage(conversation.id, "assistant", parsed.reply, provider);
-    if (!conversation.greetedAt) await markGreeted(conversation.id);
+    await recordMessage(auth.workspaceId, conversation.id, "user", message);
+    const result = await callProvider(provider, assistantSystemPrompt(config), userPrompt, config);
+    const parsed = parseAssistantPayload(result.text);
+    const applied = await applyAssistantActions(auth.workspaceId, parsed.actions);
+    await recordMessage(auth.workspaceId, conversation.id, "assistant", parsed.reply, provider);
+    await recordUsage({
+      userId: auth.user.id,
+      workspaceId: auth.workspaceId,
+      provider,
+      model: result.model,
+      inputTokens: result.inputTokens,
+      outputTokens: result.outputTokens,
+    });
+    if (!conversation.greetedAt) await markGreeted(auth.workspaceId, conversation.id);
     return Response.json({
       reply: parsed.reply,
       applied,

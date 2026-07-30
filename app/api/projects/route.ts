@@ -1,15 +1,15 @@
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { getDb } from "../../../db";
 import { projects, tasks } from "../../../db/schema";
 import {
   addHistory,
-  assertAuthenticated,
   errorResponse,
   invalidateContextCache,
   newId,
   normalizePriority,
   normalizeProjectStatus,
   nowIso,
+  requireUser,
 } from "../../../lib/sol";
 
 type ProjectPayload = {
@@ -27,7 +27,7 @@ type ProjectPayload = {
 
 export async function POST(request: Request) {
   try {
-    assertAuthenticated(request);
+    const auth = await requireUser(request);
     const payload = await request.json() as ProjectPayload;
     if (!payload.name?.trim()) {
       return Response.json({ error: "Informe o nome do projeto." }, { status: 400 });
@@ -35,6 +35,7 @@ export async function POST(request: Request) {
     const timestamp = nowIso();
     const project = {
       id: newId("prj"),
+      workspaceId: auth.workspaceId,
       name: payload.name.trim(),
       objective: payload.objective?.trim() ?? "",
       status: normalizeProjectStatus(payload.status),
@@ -50,8 +51,8 @@ export async function POST(request: Request) {
     };
     const db = await getDb();
     await db.insert(projects).values(project).run();
-    await addHistory("criado", "projeto", project.id, `Projeto ${project.name} criado.`);
-    await invalidateContextCache();
+    await addHistory(auth.workspaceId, "criado", "projeto", project.id, `Projeto ${project.name} criado.`);
+    await invalidateContextCache(auth.workspaceId);
     return Response.json({ project }, { status: 201 });
   } catch (error) {
     return errorResponse(error);
@@ -60,7 +61,7 @@ export async function POST(request: Request) {
 
 export async function PATCH(request: Request) {
   try {
-    assertAuthenticated(request);
+    const auth = await requireUser(request);
     const payload = await request.json() as ProjectPayload;
     if (!payload.id) return Response.json({ error: "Projeto inválido." }, { status: 400 });
     const timestamp = nowIso();
@@ -77,9 +78,9 @@ export async function PATCH(request: Request) {
       ...(payload.dueDate !== undefined ? { dueDate: payload.dueDate || null } : {}),
       lastUpdate: timestamp,
       updatedAt: timestamp,
-    }).where(eq(projects.id, payload.id)).run();
-    await addHistory("atualizado", "projeto", payload.id, "Projeto atualizado.");
-    await invalidateContextCache();
+    }).where(and(eq(projects.workspaceId, auth.workspaceId), eq(projects.id, payload.id))).run();
+    await addHistory(auth.workspaceId, "atualizado", "projeto", payload.id, "Projeto atualizado.");
+    await invalidateContextCache(auth.workspaceId);
     return Response.json({ ok: true });
   } catch (error) {
     return errorResponse(error);
@@ -88,14 +89,16 @@ export async function PATCH(request: Request) {
 
 export async function DELETE(request: Request) {
   try {
-    assertAuthenticated(request);
+    const auth = await requireUser(request);
     const id = new URL(request.url).searchParams.get("id");
     if (!id) return Response.json({ error: "Projeto inválido." }, { status: 400 });
     const db = await getDb();
-    await db.update(tasks).set({ projectId: null, updatedAt: nowIso() }).where(eq(tasks.projectId, id)).run();
-    await db.delete(projects).where(eq(projects.id, id)).run();
-    await addHistory("excluido", "projeto", id, "Projeto excluído.");
-    await invalidateContextCache();
+    await db.update(tasks).set({ projectId: null, updatedAt: nowIso() })
+      .where(and(eq(tasks.workspaceId, auth.workspaceId), eq(tasks.projectId, id))).run();
+    await db.delete(projects)
+      .where(and(eq(projects.workspaceId, auth.workspaceId), eq(projects.id, id))).run();
+    await addHistory(auth.workspaceId, "excluido", "projeto", id, "Projeto excluído.");
+    await invalidateContextCache(auth.workspaceId);
     return Response.json({ ok: true });
   } catch (error) {
     return errorResponse(error);

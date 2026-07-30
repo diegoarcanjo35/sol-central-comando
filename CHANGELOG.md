@@ -1,5 +1,24 @@
 # Histórico de versões
 
+## [0.6.0] — 2026-07-30
+
+### Adicionado
+
+- contas por e-mail autenticado no Cloudflare Access;
+- workspace privado para cada usuário;
+- onboarding para personalidade, missão, motivação, cobrança, iniciativa e apoio a TDAH;
+- painel administrativo com cadastro, ativação, suspensão, plano e consumo;
+- medição de chamadas, tokens e volume de áudio por usuário;
+- perfis de administrador e usuário comum.
+
+### Segurança
+
+- isolamento obrigatório de projetos, atividades, memórias, histórico, conversas, mensagens e cache;
+- APIs e seleção do provedor disponíveis somente para administradores;
+- migração aditiva que atribui todos os dados existentes ao workspace de Diego;
+- atualizações e exclusões protegidas simultaneamente por ID e workspace;
+- usuários não cadastrados ou suspensos são bloqueados pelo servidor.
+
 ## [0.5.0] — 2026-07-30
 
 ### Adicionado

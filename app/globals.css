@@ -151,7 +151,7 @@ button { cursor:pointer; }
 .dialog h2 { margin:5px 0 0; font-size:22px; }
 .dialog>header>button { width:34px; height:34px; border:0; border-radius:10px; background:#eff0f4; font-size:20px; }
 .dialog label,.profile-settings label { display:grid; gap:6px; color:#555d70; font-size:9px; font-weight:800; }
-.dialog input,.dialog select,.dialog textarea,.profile-settings input,.profile-settings textarea { width:100%; padding:11px 12px; border:1px solid var(--line); border-radius:10px; outline:0; background:#fafafc; font-size:11px; font-weight:500; }
+.dialog input,.dialog select,.dialog textarea,.profile-settings input,.profile-settings select,.profile-settings textarea { width:100%; padding:11px 12px; border:1px solid var(--line); border-radius:10px; outline:0; background:#fafafc; font-size:11px; font-weight:500; }
 .dialog textarea,.profile-settings textarea { min-height:70px; resize:vertical; }
 .dialog input:focus,.dialog select:focus,.dialog textarea:focus,.profile-settings input:focus,.profile-settings textarea:focus { border-color:#927bea; box-shadow:0 0 0 3px #eeeaff; }
 .form-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
@@ -162,6 +162,37 @@ button { cursor:pointer; }
 .danger-button { background:#fff0f1; color:#c44050; }
 .profile-settings { display:grid; gap:14px; margin-top:18px; }
 .profile-settings>.primary-button { justify-self:end; }
+.check-row { display:flex!important; grid-template-columns:18px 1fr!important; align-items:center; gap:9px!important; }
+.check-row input { width:16px!important; height:16px; padding:0; }
+.onboarding-shell { min-height:100dvh; display:grid; place-items:center; padding:30px 16px; background:radial-gradient(circle at 80% 10%,#755be42c,transparent 35%),#f3f4f8; }
+.onboarding-card { width:min(780px,100%); display:grid; gap:16px; padding:36px; border:1px solid var(--line); border-radius:26px; background:#fff; box-shadow:0 25px 80px #24244317; }
+.onboarding-card .brand { margin-bottom:10px; color:var(--ink); }
+.onboarding-card h1 { max-width:620px; margin:0; font-size:31px; line-height:1.12; letter-spacing:-.045em; }
+.onboarding-copy { max-width:620px; margin:0 0 8px; color:var(--muted); font-size:12px; line-height:1.6; }
+.onboarding-card>label,.invite-form label { display:grid; gap:6px; color:#555d70; font-size:9px; font-weight:800; }
+.onboarding-card input,.onboarding-card select,.onboarding-card textarea,.invite-form input,.invite-form select { width:100%; padding:11px 12px; border:1px solid var(--line); border-radius:10px; outline:0; background:#fafafc; font-size:11px; }
+.onboarding-card textarea { min-height:76px; resize:vertical; }
+.onboarding-card>.primary-button { justify-self:end; min-width:190px; }
+.inline-error { padding:11px 13px; border:1px solid #ffcbd1; border-radius:10px; background:#fff1f3; color:#aa3443; font-size:10px; }
+.admin-metrics { margin:0 0 18px; }
+.invite-form { display:grid; gap:14px; margin-bottom:18px; }
+.invite-form>.primary-button { justify-self:end; }
+.model-form { display:grid; gap:12px; margin-top:18px; padding-top:18px; border-top:1px solid #eff0f4; }
+.model-form label { display:grid; gap:6px; color:#555d70; font-size:9px; font-weight:800; }
+.model-form input { width:100%; padding:11px 12px; border:1px solid var(--line); border-radius:10px; outline:0; background:#fafafc; font-size:11px; }
+.model-form>.primary-button { justify-self:end; }
+.admin-note { margin:0; padding:10px 12px; border-radius:9px; background:#f0edff; color:#5943b9; font-size:9px; line-height:1.5; }
+.users-table { padding-top:4px; padding-bottom:4px; }
+.user-row { display:grid; grid-template-columns:42px minmax(150px,1fr) 90px minmax(150px,1fr) 90px; align-items:center; gap:12px; padding:15px 0; border-top:1px solid #eff0f4; }
+.user-row:first-child { border-top:0; }
+.user-row>div { display:flex; flex-direction:column; gap:4px; min-width:0; }
+.user-row>div strong { font-size:11px; overflow:hidden; text-overflow:ellipsis; }
+.user-row small { color:var(--muted); font-size:9px; overflow:hidden; text-overflow:ellipsis; }
+.status-pill { justify-self:start; padding:5px 8px; border-radius:8px; font-size:8px; font-weight:800; }
+.status-pill.active { background:#e3f7ec; color:#278b5d; }
+.status-pill.invited { background:#fff3d8; color:#9b6a1d; }
+.status-pill.suspended { background:#ffeaec; color:#be3f4f; }
+.user-row>button { padding:9px; }
 
 @media(max-width:900px) {
   .api-row input { grid-column:1/-1; grid-row:2; }
@@ -169,4 +200,11 @@ button { cursor:pointer; }
   .dialog { width:100%; max-height:92dvh; border-radius:24px 24px 0 0; padding:20px 16px max(20px,env(safe-area-inset-bottom)); }
   .form-grid { grid-template-columns:1fr; }
   .error-banner { top:84px; right:12px; left:12px; }
+  .mobile-nav { grid-template-columns:repeat(auto-fit,minmax(54px,1fr)); }
+  .onboarding-card { padding:24px 18px; border-radius:20px; }
+  .onboarding-card h1 { font-size:25px; }
+  .onboarding-card>.primary-button { width:100%; justify-self:stretch; }
+  .user-row { grid-template-columns:38px 1fr auto; }
+  .user-row .usage-cell { grid-column:2/4; }
+  .user-row>button { grid-column:2/4; }
 }

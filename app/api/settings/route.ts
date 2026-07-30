@@ -2,21 +2,21 @@ import { eq } from "drizzle-orm";
 import { getDb } from "../../../db";
 import { providerCredentials, settings } from "../../../db/schema";
 import {
-  assertAuthenticated,
   credentialStatus,
   errorResponse,
-  getSettings,
+  getPlatformSettings,
   nowIso,
   PROVIDERS,
+  requirePlatformOwner,
   saveCredential,
   type Provider,
 } from "../../../lib/sol";
 
 export async function GET(request: Request) {
   try {
-    assertAuthenticated(request);
+    await requirePlatformOwner(request);
     return Response.json({
-      settings: await getSettings(),
+      settings: await getPlatformSettings(),
       credentials: await credentialStatus(),
     });
   } catch (error) {
@@ -26,7 +26,7 @@ export async function GET(request: Request) {
 
 export async function PATCH(request: Request) {
   try {
-    assertAuthenticated(request);
+    await requirePlatformOwner(request);
     const payload = await request.json() as Record<string, unknown>;
     const activeProvider = typeof payload.activeProvider === "string" && PROVIDERS.includes(payload.activeProvider as Provider)
       ? payload.activeProvider
@@ -37,12 +37,9 @@ export async function PATCH(request: Request) {
       ...(typeof payload.openaiModel === "string" ? { openaiModel: payload.openaiModel.trim() } : {}),
       ...(typeof payload.googleModel === "string" ? { googleModel: payload.googleModel.trim() } : {}),
       ...(typeof payload.anthropicModel === "string" ? { anthropicModel: payload.anthropicModel.trim() } : {}),
-      ...(typeof payload.userName === "string" ? { userName: payload.userName.trim() || "Diego" } : {}),
-      ...(typeof payload.mission === "string" ? { mission: payload.mission.trim() } : {}),
-      ...(payload.monthlyGoal !== undefined ? { monthlyGoal: Math.max(0, Number(payload.monthlyGoal) || 0) } : {}),
       updatedAt: nowIso(),
     }).where(eq(settings.id, 1)).run();
-    return Response.json({ settings: await getSettings() });
+    return Response.json({ settings: await getPlatformSettings() });
   } catch (error) {
     return errorResponse(error);
   }
@@ -50,7 +47,7 @@ export async function PATCH(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    assertAuthenticated(request);
+    await requirePlatformOwner(request);
     const payload = await request.json() as { provider?: string; apiKey?: string };
     if (!payload.provider || !PROVIDERS.includes(payload.provider as Provider)) {
       return Response.json({ error: "Provedor inválido." }, { status: 400 });
@@ -65,7 +62,7 @@ export async function POST(request: Request) {
 
 export async function DELETE(request: Request) {
   try {
-    assertAuthenticated(request);
+    await requirePlatformOwner(request);
     const provider = new URL(request.url).searchParams.get("provider") as Provider | null;
     if (!provider || !PROVIDERS.includes(provider)) {
       return Response.json({ error: "Provedor inválido." }, { status: 400 });

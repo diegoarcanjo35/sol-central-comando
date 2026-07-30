@@ -1,10 +1,10 @@
 # SOL — Central de Comando
 
-Aplicativo pessoal mobile-first para gerenciar projetos, atividades, memória, prioridades e execução com assistência de IA.
+Aplicativo mobile-first multiusuário para gerenciar projetos, atividades, memória, prioridades e execução com assistência de IA.
 
 ## Versão
 
-`v0.5.0 beta`
+`v0.6.0 beta`
 
 ## Recursos
 
@@ -17,6 +17,12 @@ Aplicativo pessoal mobile-first para gerenciar projetos, atividades, memória, p
 - chaves de API criptografadas no servidor;
 - gravação de áudio segura e resposta somente por texto;
 - PWA instalável no celular.
+- autenticação por Cloudflare Access e autorização interna por usuário;
+- workspace, projetos, memória, conversas e cache isolados por conta;
+- onboarding para personalizar nome, missão, tom, cobrança, iniciativa e apoio a TDAH;
+- painel administrativo para cadastrar, suspender e acompanhar o uso dos usuários;
+- APIs e provedor ativo controlados somente por administradores;
+- medição de chamadas, tokens e transcrições por usuário.
 
 ## Provedores padrão
 
@@ -25,7 +31,7 @@ Aplicativo pessoal mobile-first para gerenciar projetos, atividades, memória, p
 - Anthropic: `claude-sonnet-5`;
 - transcrição: `gpt-4o-mini-transcribe`.
 
-Os modelos podem ser alterados em **Ajustes** sem modificar o código.
+As chaves e o provedor ativo são administrados em **Ajustes** apenas pelo administrador.
 
 ## Segurança
 
@@ -33,7 +39,18 @@ Os modelos podem ser alterados em **Ajustes** sem modificar o código.
 - `.env*` está bloqueado pelo `.gitignore`;
 - as chaves cadastradas na interface são criptografadas antes de serem salvas;
 - `SOL_ENCRYPTION_KEY` existe somente nas variáveis protegidas da hospedagem;
-- a aplicação permanece restrita ao proprietário durante a fase beta.
+- cada consulta e alteração é limitada ao workspace do usuário autenticado;
+- cadastros são liberados por convite durante a fase beta;
+- além do cadastro no SOL, cada e-mail precisa ser autorizado na política do Cloudflare Access.
+
+## Primeiro acesso de um usuário
+
+1. O administrador cadastra nome e e-mail na aba **Admin**.
+2. O mesmo e-mail é autorizado na política do Cloudflare Access.
+3. No primeiro acesso, o usuário personaliza sua IA.
+4. Um workspace privado é criado automaticamente e permanece separado dos demais.
+
+O SOL não lê automaticamente a memória privada de uma conta do ChatGPT. Uma importação revisável por arquivo de exportação está prevista para uma versão futura.
 
 ## Desenvolvimento
 
