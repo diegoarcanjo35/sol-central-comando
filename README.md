@@ -4,7 +4,7 @@ Aplicativo mobile-first multiusuário para gerenciar projetos, atividades, memó
 
 ## Versão
 
-`v0.7.1 MVP`
+`v0.8.0 MVP`
 
 ## Recursos
 
@@ -22,7 +22,9 @@ Aplicativo mobile-first multiusuário para gerenciar projetos, atividades, memó
 - onboarding para personalizar nome, missão, tom, cobrança, iniciativa e apoio a TDAH;
 - painel administrativo para cadastrar, suspender e acompanhar o uso dos usuários;
 - APIs e provedor ativo controlados somente por administradores;
-- medição de chamadas, tokens e transcrições por usuário.
+- medição de chamadas, tokens e transcrições por usuário;
+- custo mensal estimado em reais por usuário, calculado pelo modelo utilizado;
+- configuração administrativa da cotação do dólar e dos preços de entrada, saída e transcrição.
 - login próprio com senha e sessão segura;
 - convites e redefinições por link individual de uso único;
 - recuperação de senha por e-mail via Resend;

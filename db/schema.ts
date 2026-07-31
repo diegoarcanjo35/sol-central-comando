@@ -1,4 +1,4 @@
-import { index, integer, real, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
+import { index, integer, primaryKey, real, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
 
 export const users = sqliteTable("users", {
   id: text("id").primaryKey(),
@@ -220,8 +220,26 @@ export const usageLogs = sqliteTable("usage_logs", {
   inputTokens: integer("input_tokens").notNull().default(0),
   outputTokens: integer("output_tokens").notNull().default(0),
   audioBytes: integer("audio_bytes").notNull().default(0),
+  audioDurationSeconds: real("audio_duration_seconds").notNull().default(0),
   createdAt: text("created_at").notNull(),
 }, (table) => [
   index("usage_workspace_idx").on(table.workspaceId, table.createdAt),
   index("usage_user_idx").on(table.userId, table.createdAt),
+]);
+
+export const costSettings = sqliteTable("cost_settings", {
+  id: integer("id").primaryKey().default(1),
+  usdToBrl: real("usd_to_brl").notNull().default(5.5),
+  updatedAt: text("updated_at").notNull(),
+});
+
+export const modelPricing = sqliteTable("model_pricing", {
+  provider: text("provider").notNull(),
+  model: text("model").notNull(),
+  inputUsdPerMillion: real("input_usd_per_million").notNull().default(0),
+  outputUsdPerMillion: real("output_usd_per_million").notNull().default(0),
+  audioUsdPerMinute: real("audio_usd_per_minute").notNull().default(0),
+  updatedAt: text("updated_at").notNull(),
+}, (table) => [
+  primaryKey({ columns: [table.provider, table.model] }),
 ]);

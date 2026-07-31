@@ -188,6 +188,18 @@ button { cursor:pointer; }
 .inline-success { padding:11px 12px; border:1px solid #b9e7cf; border-radius:10px; background:#effbf4; color:#17633c; font-size:10px; line-height:1.5; }
 .logout-button { margin-top:16px; padding:10px 14px; border:1px solid #ffcbd1; border-radius:10px; background:#fff; color:#b43c4b; font-size:10px; font-weight:800; }
 .admin-metrics { margin:0 0 18px; }
+.cost-form { display:grid; gap:16px; margin-bottom:18px; }
+.cost-intro { display:grid; grid-template-columns:1fr minmax(160px,220px); align-items:end; gap:18px; }
+.cost-intro p { margin:0; color:var(--muted); font-size:10px; line-height:1.6; }
+.cost-form label { display:grid; gap:6px; color:#555d70; font-size:9px; font-weight:800; }
+.cost-form input { width:100%; padding:10px 11px; border:1px solid var(--line); border-radius:10px; outline:0; background:#fafafc; font-size:10px; }
+.pricing-list { display:grid; gap:8px; }
+.pricing-row { display:grid; grid-template-columns:minmax(170px,1fr) repeat(2,minmax(145px,190px)); align-items:end; gap:12px; padding:12px; border:1px solid #eff0f4; border-radius:12px; background:#fcfcfe; }
+.pricing-row>div { display:flex; flex-direction:column; gap:4px; min-width:0; }
+.pricing-row strong { font-size:10px; }
+.pricing-row small { color:var(--muted); font-size:8px; overflow:hidden; text-overflow:ellipsis; }
+.cost-footer { display:flex; justify-content:space-between; align-items:center; gap:12px; }
+.cost-footer small { color:var(--muted); font-size:8px; line-height:1.5; }
 .invite-form { display:grid; gap:14px; margin-bottom:18px; }
 .invite-form>.primary-button { justify-self:end; }
 .model-form { display:grid; gap:12px; margin-top:18px; padding-top:18px; border-top:1px solid #eff0f4; }
@@ -226,6 +238,9 @@ button { cursor:pointer; }
   .onboarding-card>.primary-button { width:100%; justify-self:stretch; }
   .auth-card { padding:26px 19px; }
   .auth-card h1 { font-size:25px; }
+  .cost-intro,.pricing-row { grid-template-columns:1fr; }
+  .cost-footer { align-items:stretch; flex-direction:column; }
+  .cost-footer .primary-button { width:100%; }
   .user-row { grid-template-columns:38px 1fr auto; }
   .user-row .usage-cell { grid-column:2/4; }
   .user-actions { grid-column:2/4; }

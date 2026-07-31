@@ -128,6 +128,7 @@ export default function Home() {
   const recorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const streamRef = useRef<MediaStream | null>(null);
+  const recordingStartedAtRef = useRef(0);
 
   const loadDashboard = async (quiet = false) => {
     if (!quiet) setLoading(true);
@@ -247,9 +248,11 @@ export default function Home() {
         setRecording(false);
         streamRef.current?.getTracks().forEach((track) => track.stop());
         const blob = new Blob(chunksRef.current, { type: recorder.mimeType || "audio/webm" });
-        await transcribe(blob);
+        const durationSeconds = Math.max(0, (Date.now() - recordingStartedAtRef.current) / 1000);
+        await transcribe(blob, durationSeconds);
       };
       recorder.start();
+      recordingStartedAtRef.current = Date.now();
       setRecording(true);
     } catch {
       setChat((current) => [...current, {
@@ -259,11 +262,12 @@ export default function Home() {
     }
   }
 
-  async function transcribe(blob: Blob) {
+  async function transcribe(blob: Blob, durationSeconds: number) {
     setTranscribing(true);
     try {
       const form = new FormData();
       form.set("audio", new File([blob], "gravacao.webm", { type: blob.type || "audio/webm" }));
+      form.set("durationSeconds", durationSeconds.toFixed(2));
       const response = await fetch("/api/transcribe", { method: "POST", body: form });
       const payload = await response.json() as { text?: string; error?: string };
       if (!response.ok) throw new Error(payload.error ?? "Não foi possível transcrever.");
@@ -1029,28 +1033,63 @@ type AdminUser = {
   onboardingCompleted: boolean;
   lastLoginAt: string | null;
   hasPassword: boolean;
-  usage: { requests: number; inputTokens: number; outputTokens: number; audioBytes: number };
+  usage: {
+    requests: number;
+    inputTokens: number;
+    outputTokens: number;
+    audioBytes: number;
+    audioDurationSeconds: number;
+    estimatedCostBrl: number;
+    unpricedRequests: number;
+  };
+};
+
+type ModelPriceConfig = {
+  provider: Provider;
+  model: string;
+  inputUsdPerMillion: number;
+  outputUsdPerMillion: number;
+  audioUsdPerMinute: number;
+};
+
+type CostConfig = {
+  usdToBrl: number;
+  pricing: ModelPriceConfig[];
+  updatedAt: string | null;
 };
 
 function AdminPanel({ onError }: { onError: (message: string) => void }) {
   const [users, setUsers] = useState<AdminUser[]>([]);
+  const [costConfig, setCostConfig] = useState<CostConfig | null>(null);
   const [busy, setBusy] = useState("");
   const [accessNote, setAccessNote] = useState("");
   const [inviteUrl, setInviteUrl] = useState("");
   async function load() {
-    const response = await fetch("/api/admin/users", { cache: "no-store" });
-    const payload = await response.json() as { users?: AdminUser[]; accessNote?: string; error?: string };
-    if (!response.ok) throw new Error(payload.error ?? "Erro ao carregar usuários.");
-    setUsers(payload.users ?? []);
-    setAccessNote(payload.accessNote ?? "");
+    const [usersResponse, costsResponse] = await Promise.all([
+      fetch("/api/admin/users", { cache: "no-store" }),
+      fetch("/api/admin/costs", { cache: "no-store" }),
+    ]);
+    const usersPayload = await usersResponse.json() as { users?: AdminUser[]; accessNote?: string; error?: string };
+    const costsPayload = await costsResponse.json() as CostConfig & { error?: string };
+    if (!usersResponse.ok) throw new Error(usersPayload.error ?? "Erro ao carregar usuários.");
+    if (!costsResponse.ok) throw new Error(costsPayload.error ?? "Erro ao carregar custos.");
+    setUsers(usersPayload.users ?? []);
+    setAccessNote(usersPayload.accessNote ?? "");
+    setCostConfig(costsPayload);
   }
   useEffect(() => {
-    void fetch("/api/admin/users", { cache: "no-store" })
-      .then(async (response) => {
-        const payload = await response.json() as { users?: AdminUser[]; accessNote?: string; error?: string };
-        if (!response.ok) throw new Error(payload.error ?? "Erro ao carregar usuários.");
-        setUsers(payload.users ?? []);
-        setAccessNote(payload.accessNote ?? "");
+    void Promise.all([
+      fetch("/api/admin/users", { cache: "no-store" }),
+      fetch("/api/admin/costs", { cache: "no-store" }),
+    ])
+      .then(async ([usersResponse, costsResponse]) => {
+        const usersPayload = await usersResponse.json() as { users?: AdminUser[]; accessNote?: string; error?: string };
+        const costsPayload = await costsResponse.json() as CostConfig & { error?: string };
+        if (!usersResponse.ok) throw new Error(usersPayload.error ?? "Erro ao carregar usuários.");
+        if (!costsResponse.ok) throw new Error(costsPayload.error ?? "Erro ao carregar custos.");
+        setUsers(usersPayload.users ?? []);
+        setAccessNote(usersPayload.accessNote ?? "");
+        setCostConfig(costsPayload);
       })
       .catch((loadError) => onError(loadError instanceof Error ? loadError.message : "Erro ao carregar usuários."));
   }, [onError]);
@@ -1124,17 +1163,79 @@ function AdminPanel({ onError }: { onError: (message: string) => void }) {
       setBusy("");
     }
   }
+  async function saveCosts(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!costConfig) return;
+    setBusy("costs");
+    const form = new FormData(event.currentTarget);
+    try {
+      const response = await fetch("/api/admin/costs", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          usdToBrl: Number(form.get("usdToBrl")),
+          pricing: costConfig.pricing.map((price, index) => ({
+            provider: price.provider,
+            model: price.model,
+            inputUsdPerMillion: Number(form.get(`price-${index}-input`) ?? 0),
+            outputUsdPerMillion: Number(form.get(`price-${index}-output`) ?? 0),
+            audioUsdPerMinute: Number(form.get(`price-${index}-audio`) ?? 0),
+          })),
+        }),
+      });
+      const payload = await response.json() as { error?: string };
+      if (!response.ok) throw new Error(payload.error ?? "Erro ao salvar custos.");
+      await load();
+    } catch (costError) {
+      onError(costError instanceof Error ? costError.message : "Erro ao salvar custos.");
+    } finally {
+      setBusy("");
+    }
+  }
   const totalRequests = users.reduce((sum, user) => sum + user.usage.requests, 0);
   const totalTokens = users.reduce((sum, user) => sum + user.usage.inputTokens + user.usage.outputTokens, 0);
+  const totalCost = users.reduce((sum, user) => sum + user.usage.estimatedCostBrl, 0);
+  const unpricedRequests = users.reduce((sum, user) => sum + user.usage.unpricedRequests, 0);
   return (
     <div className="page">
       <Heading eyebrow="ADMINISTRAÇÃO" title="Usuários e consumo" />
       <section className="metrics admin-metrics">
         <Metric value={users.length} label="Usuários" detail="Contas cadastradas" tone="blue" />
         <Metric value={users.filter((user) => user.status === "active").length} label="Ativos" detail="Com acesso liberado" tone="green" />
-        <Metric value={totalRequests} label="Chamadas de IA" detail="Histórico registrado" tone="amber" />
-        <Metric value={totalTokens.toLocaleString("pt-BR")} label="Tokens" detail="Entrada + saída" tone="danger" />
+        <Metric value={totalRequests} label="Chamadas no mês" detail={`${totalTokens.toLocaleString("pt-BR")} tokens`} tone="amber" />
+        <Metric value={formatAiCost(totalCost)} label="Custo no mês" detail={unpricedRequests ? `${unpricedRequests} chamada(s) sem preço` : "Estimativa completa"} tone="danger" />
       </section>
+      {costConfig && (
+        <form className="panel cost-form" onSubmit={saveCosts}>
+          <PanelTitle eyebrow="CUSTOS DE IA" title="Converter consumo para reais" />
+          <div className="cost-intro">
+            <p>Informe os preços oficiais das suas APIs. O SOL usa o modelo exato de cada chamada e mantém os tokens para conferência.</p>
+            <label>Cotação USD → BRL<input name="usdToBrl" type="number" min="0.01" max="20" step="0.01" defaultValue={costConfig.usdToBrl} /></label>
+          </div>
+          <div className="pricing-list">
+            {costConfig.pricing.map((price, index) => {
+              const transcription = price.model === "gpt-4o-mini-transcribe";
+              return (
+                <article className="pricing-row" key={`${price.provider}:${price.model}`}>
+                  <div><strong>{providerLabels[price.provider]}</strong><small>{price.model}</small></div>
+                  {!transcription && <label>Entrada / 1M tokens (USD)<input name={`price-${index}-input`} type="number" min="0" max="1000" step="0.0001" defaultValue={price.inputUsdPerMillion} /></label>}
+                  {!transcription && <label>Saída / 1M tokens (USD)<input name={`price-${index}-output`} type="number" min="0" max="1000" step="0.0001" defaultValue={price.outputUsdPerMillion} /></label>}
+                  {transcription && <label>Áudio / minuto (USD)<input name={`price-${index}-audio`} type="number" min="0" max="1000" step="0.0001" defaultValue={price.audioUsdPerMinute} /></label>}
+                  {!transcription && <input name={`price-${index}-audio`} type="hidden" value="0" />}
+                  {transcription && <>
+                    <input name={`price-${index}-input`} type="hidden" value="0" />
+                    <input name={`price-${index}-output`} type="hidden" value="0" />
+                  </>}
+                </article>
+              );
+            })}
+          </div>
+          <div className="cost-footer">
+            <small>Os valores são estimativas. Alterações futuras de preço devem ser atualizadas aqui.</small>
+            <button className="primary-button" disabled={busy === "costs"}>{busy === "costs" ? "Salvando…" : "Salvar preços"}</button>
+          </div>
+        </form>
+      )}
       <form className="panel invite-form" onSubmit={invite}>
         <PanelTitle eyebrow="NOVO ACESSO" title="Cadastrar usuário" />
         <div className="form-grid">
@@ -1160,7 +1261,10 @@ function AdminPanel({ onError }: { onError: (message: string) => void }) {
             <span className="avatar">{initials(user.name)}</span>
             <div><strong>{user.name}</strong><small>{user.email}</small></div>
             <span className={`status-pill ${user.status}`}>{user.status === "active" ? "Ativo" : user.status === "suspended" ? "Suspenso" : "Convidado"}</span>
-            <div className="usage-cell"><strong>{user.usage.requests}</strong><small>chamadas · {(user.usage.inputTokens + user.usage.outputTokens).toLocaleString("pt-BR")} tokens</small></div>
+            <div className="usage-cell">
+              <strong>{formatAiCost(user.usage.estimatedCostBrl)}</strong>
+              <small>{user.usage.requests} chamadas · {(user.usage.inputTokens + user.usage.outputTokens).toLocaleString("pt-BR")} tokens{user.usage.unpricedRequests ? ` · ${user.usage.unpricedRequests} sem preço` : ""}</small>
+            </div>
             <div className="user-actions">
               {user.role !== "superadmin" && user.status !== "suspended" && (
                 <button className="primary-button" onClick={() => void generateAccess(user)} disabled={busy === `invite-${user.id}`}>
@@ -1201,6 +1305,7 @@ function daysSince(value: string) { return Math.max(0, Math.floor((Date.now() - 
 function isToday(value: string) { const date = new Date(value); const today = new Date(); return date.toDateString() === today.toDateString(); }
 function isOverdue(value: string | null, status: string) { return Boolean(value && status !== "concluida" && new Date(value) < new Date()); }
 function formatMoney(value: number) { return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 }).format(value || 0); }
+function formatAiCost(value: number) { return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL", minimumFractionDigits: 2, maximumFractionDigits: 4 }).format(value || 0); }
 function dateLabel() { return new Intl.DateTimeFormat("pt-BR", { weekday: "long", day: "2-digit", month: "long" }).format(new Date()).toUpperCase(); }
 function dateTime(value: string) { return new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }).format(new Date(value)); }
 function greetingTitle(name: string) { const hour = new Date().getHours(); return `${hour < 12 ? "Bom dia" : hour < 18 ? "Boa tarde" : "Boa noite"}, ${name}.`; }

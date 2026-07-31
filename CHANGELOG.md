@@ -1,5 +1,18 @@
 # Histórico de versões
 
+## [0.8.0] — 2026-07-31
+
+### Custos de IA em reais
+
+- converte o consumo mensal de cada usuário para reais;
+- preserva chamadas e tokens nos detalhes para auditoria;
+- calcula separadamente tokens de entrada, saída e minutos de transcrição;
+- usa o provedor e o modelo exatos registrados em cada chamada;
+- adiciona no painel administrativo a cotação USD/BRL e os preços dos modelos;
+- sinaliza chamadas que ainda não possuem preço configurado, evitando mostrar custo zero enganoso;
+- registra a duração dos novos áudios para calcular o custo de transcrição;
+- mantém registros históricos e todos os dados dos usuários sem alterações destrutivas.
+
 ## [0.7.1] — 2026-07-30
 
 ### Correção urgente

@@ -22,6 +22,13 @@
       "when": 1785421109016,
       "tag": "0002_secure_invites",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1785475755243,
+      "tag": "0003_watery_stick",
+      "breakpoints": true
     }
   ]
 }

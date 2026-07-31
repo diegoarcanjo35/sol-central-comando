@@ -546,6 +546,7 @@ export async function recordUsage(input: {
   inputTokens?: number;
   outputTokens?: number;
   audioBytes?: number;
+  audioDurationSeconds?: number;
 }) {
   const db = await getDb();
   await db.insert(usageLogs).values({
@@ -558,6 +559,7 @@ export async function recordUsage(input: {
     inputTokens: Math.max(0, Number(input.inputTokens) || 0),
     outputTokens: Math.max(0, Number(input.outputTokens) || 0),
     audioBytes: Math.max(0, Number(input.audioBytes) || 0),
+    audioDurationSeconds: Math.max(0, Number(input.audioDurationSeconds) || 0),
     createdAt: nowIso(),
   }).run();
 }

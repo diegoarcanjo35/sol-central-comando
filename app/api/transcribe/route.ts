@@ -10,6 +10,10 @@ export async function POST(request: Request) {
     const auth = await requireUser(request);
     const form = await request.formData();
     const audio = form.get("audio");
+    const audioDurationSeconds = Math.min(
+      3600,
+      Math.max(0, Number(form.get("durationSeconds")) || 0),
+    );
     if (!(audio instanceof File)) {
       return Response.json({ error: "Áudio não recebido." }, { status: 400 });
     }
@@ -35,6 +39,7 @@ export async function POST(request: Request) {
       model: "gpt-4o-mini-transcribe",
       operation: "transcription",
       audioBytes: audio.size,
+      audioDurationSeconds,
     });
     return Response.json({ text: data.text?.trim() ?? "" });
   } catch (error) {

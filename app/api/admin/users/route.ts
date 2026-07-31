@@ -1,6 +1,7 @@
 import { desc, eq } from "drizzle-orm";
 import { getDb } from "../../../../db";
-import { usageLogs, users } from "../../../../db/schema";
+import { costSettings, modelPricing, usageLogs, users } from "../../../../db/schema";
+import { estimateUsageUsd, pricingKey } from "../../../../lib/costs";
 import {
   createInvitedUser,
   errorResponse,
@@ -14,27 +15,55 @@ export async function GET(request: Request) {
   try {
     await requirePlatformOwner(request);
     const db = await getDb();
-    const [userRows, usageRows] = await Promise.all([
+    const [userRows, usageRows, costConfig, pricingRows] = await Promise.all([
       db.select().from(users).orderBy(desc(users.createdAt)).all(),
       db.select().from(usageLogs).orderBy(desc(usageLogs.createdAt)).limit(5000).all(),
+      db.select().from(costSettings).where(eq(costSettings.id, 1)).get(),
+      db.select().from(modelPricing).all(),
     ]);
+    const usdToBrl = costConfig?.usdToBrl ?? 5.5;
+    const monthKey = nowIso().slice(0, 7);
+    const prices = new Map(pricingRows.map((price) => [pricingKey(price.provider, price.model), price]));
     const usageByUser = new Map<string, {
       requests: number;
       inputTokens: number;
       outputTokens: number;
       audioBytes: number;
+      audioDurationSeconds: number;
+      estimatedCostBrl: number;
+      unpricedRequests: number;
     }>();
-    for (const row of usageRows) {
+    for (const row of usageRows.filter((item) => item.createdAt.startsWith(monthKey))) {
       const current = usageByUser.get(row.userId) ?? {
         requests: 0,
         inputTokens: 0,
         outputTokens: 0,
         audioBytes: 0,
+        audioDurationSeconds: 0,
+        estimatedCostBrl: 0,
+        unpricedRequests: 0,
       };
       current.requests += 1;
       current.inputTokens += row.inputTokens;
       current.outputTokens += row.outputTokens;
       current.audioBytes += row.audioBytes;
+      current.audioDurationSeconds += row.audioDurationSeconds;
+      const price = prices.get(pricingKey(row.provider, row.model));
+      const usd = estimateUsageUsd(row, price);
+      if (usd === null || (
+        row.operation === "assistant"
+        && price
+        && price.inputUsdPerMillion === 0
+        && price.outputUsdPerMillion === 0
+      ) || (
+        row.operation === "transcription"
+        && price
+        && (price.audioUsdPerMinute === 0 || row.audioDurationSeconds <= 0)
+      )) {
+        current.unpricedRequests += 1;
+      } else {
+        current.estimatedCostBrl += usd * usdToBrl;
+      }
       usageByUser.set(row.userId, current);
     }
     return Response.json({
@@ -46,8 +75,13 @@ export async function GET(request: Request) {
           inputTokens: 0,
           outputTokens: 0,
           audioBytes: 0,
+          audioDurationSeconds: 0,
+          estimatedCostBrl: 0,
+          unpricedRequests: 0,
         },
       }))),
+      usagePeriod: monthKey,
+      usdToBrl,
       accessNote: "Gere o link e envie diretamente à pessoa. Ele expira em 48 horas.",
     });
   } catch (error) {
